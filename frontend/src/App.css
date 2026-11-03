@@ -1,0 +1,88 @@
+
+.setup-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f5f8f7;
+}
+
+.setup-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 48px 36px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e1e9e7;
+  border-radius: 20px;
+  box-shadow: 0 16px 55px rgba(10, 11, 12, 0.07);
+}
+
+.setup-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 24px;
+  border-radius: 16px;
+  background: #f45b0b;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.setup-card h1 {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  color: #0a0b0c;
+}
+
+.subtitle {
+  margin: 12px 0 30px;
+  color: #356866;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.connection-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #a8c9c8;
+  color: #0a0b0c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #356866;
+}
+
+.error {
+  color: #a12716;
+}
+
+.setup-note {
+  margin-top: 20px;
+  font-size: 13px;
+  color: #356866;
+}
+
+.setup-label {
+  display: inline-block;
+  margin-top: 22px;
+  color: #7d8d8a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
