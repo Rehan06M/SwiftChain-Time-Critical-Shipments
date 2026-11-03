@@ -6,7 +6,7 @@ node_modules/
 dist/
 build/
 
-# Environment variables
+# Environment files (secrets)
 .env
 .env.*
 !.env.example
@@ -19,6 +19,6 @@ __pycache__/
 # Logs
 *.log
 
-# OS / Editor
+# OS files
 .DS_Store
 Thumbs.db

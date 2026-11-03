@@ -491,6 +491,57 @@
             /* Native scrolling stays available.
          No CSS camera or scene animation is used. */
         }
+
+
+        /* SwiftChain account navigation.
+   Does not affect freight animation. */
+
+        .swiftchain-auth-links {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+
+        .swiftchain-auth-links a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 13px 24px;
+            border-radius: 8px;
+            font-family: "Public Sans", sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background 0.2s ease;
+        }
+
+        .swiftchain-register {
+            background: #141516;
+            color: #ffffff;
+        }
+
+        .swiftchain-register:hover {
+            background: #356866;
+        }
+
+        .swiftchain-login {
+            color: #141516;
+            border: 1px solid rgba(20, 21, 22, 0.3);
+        }
+
+        .swiftchain-login:hover {
+            background: rgba(20, 21, 22, 0.06);
+        }
+
+        @media (max-width: 609px) {
+            .swiftchain-auth-links {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
     </style>
 </head>
 
@@ -516,14 +567,16 @@
                 <!-- Main headline -->
 
                 <section class="intro" id="intro">
-                    <span class="eyebrow">WHY US</span>
+
+                    <span class="eyebrow">INTRODUCING SWIFTCHAIN</span>
 
                     <h1 class="hero-title">
-                        <span>LOGISTICS</span>
-                        <span>THAT WORKS</span>
-                        <span>AS HARD AS</span>
-                        <span>YOU DO.</span>
+                        <span>DELIVERIES</span>
+                        <span>THAT MATTER</span>
+                        <span>CAN'T AFFORD</span>
+                        <span>TO WAIT.</span>
                     </h1>
+
                 </section>
 
                 <!-- Feature 1 -->
@@ -538,15 +591,17 @@
                         <path d="M13 18h22M13 30h22" />
                     </svg>
 
+
                     <h2 class="feature-title">
-                        ONE POINT<br>OF CONTACT
+                        INTELLIGENT URGENCY<br>SCORING
                     </h2>
 
                     <p class="feature-body">
-                        No more chasing multiple vendors. One<br>
-                        team manages your entire end-to-end flow,<br>
-                        origin to destination.
+                        Every shipment gets a priority score based<br>
+                        on deadlines, cargo criticality, and business<br>
+                        impact. Because every second counts.
                     </p>
+
                 </article>
 
                 <!-- Feature 2 -->
@@ -561,15 +616,17 @@
                         <path d="M36 11v21M41 11v21" />
                     </svg>
 
+
                     <h2 class="feature-title">
-                        FULL SUPPLY CHAIN<br>VISIBILITY
+                        SMART CARRIER<br>MATCHING
                     </h2>
 
                     <p class="feature-body">
-                        Track your freight in real time and get<br>
-                        proactive updates before issues become<br>
-                        delays.
+                        Find the right carrier by comparing delivery<br>
+                        speed, reliability, availability, and cost.<br>
+                        Not just the cheapest option.
                     </p>
+
                 </article>
 
                 <!-- Feature 3 -->
@@ -581,15 +638,17 @@
                         <path d="M17 24l5 5 10-11" stroke="#0a0b0c" stroke-width="3" fill="none" />
                     </svg>
 
+
                     <h2 class="feature-title">
-                        COMPLIANCE YOU<br>CAN TRUST
+                        REAL-TIME SHIPMENT<br>VISIBILITY
                     </h2>
 
                     <p class="feature-body">
-                        Licensed customs brokers keep your<br>
-                        shipments moving within every regulatory<br>
-                        requirement, border to border.
+                        Monitor shipment locations, live milestones,<br>
+                        and delivery progress in one connected<br>
+                        logistics control tower.
                     </p>
+
                 </article>
 
                 <!-- Feature 4 -->
@@ -599,15 +658,17 @@
                         <path d="M24 4v40M35 13c-4-5-22-6-22 5s22 5 22 16-18 12-23 5" stroke-width="4" />
                     </svg>
 
+
                     <h2 class="feature-title">
-                        COMPETITIVE,<br>TRANSPARENT PRICING
+                        PREDICT DELAYS<br>BEFORE THEY HAPPEN
                     </h2>
 
                     <p class="feature-body">
-                        No hidden fees. Clear, competitive pricing<br>
-                        backed by responsive sales support<br>
-                        throughout the shipment.
+                        Detect delivery risks before deadlines slip.<br>
+                        Intelligent ETA monitoring helps identify<br>
+                        potential disruptions before it is too late.
                     </p>
+
                 </article>
 
                 <!-- Feature 5 -->
@@ -618,15 +679,17 @@
                         <path d="M24 7l17 17-17 17" stroke-width="4" />
                     </svg>
 
+
                     <h2 class="feature-title">
-                        FAST ISSUE<br>RESOLUTION
+                        INTELLIGENT<br>RECOVERY PLANS
                     </h2>
 
                     <p class="feature-body">
-                        When something unexpected happens, we<br>
-                        do not point fingers, we solve it. Our team<br>
-                        acts at once to protect your timeline.
+                        Explore faster carriers, alternative routes,<br>
+                        and smarter delivery strategies to protect<br>
+                        your critical shipment deadlines.
                     </p>
+
                 </article>
 
             </div>
@@ -640,84 +703,121 @@
 
             <div class="trust-container">
 
+
                 <div class="trust-header">
 
                     <h2 class="trust-heading">
-                        <span>TRUSTED</span>
-                        <span>BY BUSINESSES</span>
-                        <span class="muted">ACROSS THE REGION</span>
+                        <span>BUILT FOR</span>
+                        <span>TIME-CRITICAL</span>
+                        <span class="muted">DELIVERIES</span>
                     </h2>
 
                     <p class="trust-description">
-                        From first-time importers to high-volume
-                        shippers, our customers stay because every
-                        consignment is treated like it matters.
+                        When every minute matters, traditional
+                        tracking is not enough. SwiftChain helps
+                        businesses anticipate disruptions,
+                        prioritize urgent shipments, and take
+                        action before deadlines are missed.
                     </p>
 
                 </div>
+
+
 
                 <div class="quote-row">
 
                     <div class="quote-person">
-                        <h3 class="quote-name">Thomas Reid</h3>
+                        <h3 class="quote-name">
+                            MANUFACTURING
+                        </h3>
+
                         <p class="quote-role">
-                            Director, Harbour Fit Group
+                            Production-Critical Shipments
                         </p>
                     </div>
 
                     <p class="quote-text">
-                        "My business would not function without
-                        this team. They treat every consignment
-                        on its own merits, and our account
-                        managers know our business well enough
-                        to answer before we ask. We have never
-                        had that from a bigger carrier."
+                        "A single missing component can bring an
+                        entire production line to a halt. SwiftChain
+                        prioritizes critical spare parts, monitors
+                        their delivery deadlines, and recommends
+                        recovery options before delays turn into
+                        costly operational downtime."
                     </p>
 
                 </div>
+
+
 
                 <div class="quote-row">
 
                     <div class="quote-person">
-                        <h3 class="quote-name">Ana Park</h3>
+                        <h3 class="quote-name">
+                            HEALTHCARE
+                        </h3>
+
                         <p class="quote-role">
-                            Supply Chain Lead, Northline Projects
+                            Emergency Medical Logistics
                         </p>
                     </div>
 
                     <p class="quote-text">
-                        "As a first-time shipper on a major
-                        infrastructure job, we were in unfamiliar
-                        territory. They planned the whole route
-                        with us, flagged every risk early, and our
-                        first delivery reached site on the day
-                        they promised."
+                        "For urgent medicines, medical equipment,
+                        and life-critical supplies, every moment
+                        matters. SwiftChain combines shipment
+                        urgency, live tracking, and early delay
+                        detection to support faster, more informed
+                        logistics decisions."
                     </p>
 
                 </div>
+
+
 
                 <div class="quote-row">
 
                     <div class="quote-person">
-                        <h3 class="quote-name">Liam Carter</h3>
+                        <h3 class="quote-name">
+                            AVIATION
+                        </h3>
+
                         <p class="quote-role">
-                            Operations Manager, Coastline Foods
+                            Aircraft-on-Ground Logistics
                         </p>
                     </div>
 
                     <p class="quote-text">
-                        "One contact, one dashboard, no surprises.
-                        When a vessel slipped two days, we heard
-                        about it before our customers did, and
-                        the new plan was already in place."
+                        "When an aircraft is grounded waiting for
+                        a replacement part, delivery certainty
+                        becomes essential. SwiftChain evaluates
+                        carrier reliability, monitors arrival
+                        estimates, and recommends alternatives
+                        to help minimize operational disruption."
                     </p>
 
                 </div>
+
+
 
                 <p class="demo-disclaimer">
-                    Illustrative testimonials for demonstration
-                    purposes. Not verified customer endorsements.
+                    Industry use cases illustrate SwiftChain's
+                    intended capabilities. Delivery predictions
+                    and recovery recommendations are subject
+                    to system integration and validation.
                 </p>
+
+
+
+                <div class="swiftchain-auth-links">
+                    <a href="/register" class="swiftchain-register">
+                        Get Started
+                    </a>
+
+                    <a href="/login" class="swiftchain-login">
+                        Sign In
+                    </a>
+                </div>
+
 
             </div>
         </section>

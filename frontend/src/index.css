@@ -1,18 +1,61 @@
 
+@import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Exo+2:wght@700;800&display=swap");
+
 :root {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Public Sans", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+
+  --powder-blue: #A8C9C8;
+  --white: #FFFFFF;
+  --racing-orange: #F45B0B;
+  --charcoal: #0A0B0C;
+  --soft-surface: #F5F8F7;
+  --deep-teal: #356866;
+
+  --border: #DAE5E2;
+  --muted-text: #627270;
+  --display-font: "Exo 2", sans-serif;
+  --body-font: "Public Sans", sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: auto;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  background: var(--soft-surface);
+  color: var(--charcoal);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--racing-orange);
+  outline-offset: 3px;
 }
 
 #root {
