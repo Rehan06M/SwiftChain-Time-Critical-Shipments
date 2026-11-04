@@ -1,4 +1,4 @@
-
+import CarrierComparison from "../components/CarrierComparison";
 import {
   useCallback,
   useEffect,
@@ -64,6 +64,10 @@ export default function Shipments() {
     : null;
 
   const [cancellingId, setCancellingId] = useState("");
+
+  const [comparingShipment, setComparingShipment] =
+    useState<Shipment | null>(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -429,6 +433,20 @@ export default function Shipments() {
                             View
                           </button>
 
+
+                          {shipment.status === "created" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setComparingShipment(shipment)
+                              }
+                            >
+                              <Truck size={14} />
+                              Compare Carriers
+                            </button>
+                          )}
+
+
                           {shipment.status === "created" && (
                             <button
                               onClick={() => {
@@ -612,6 +630,14 @@ export default function Shipments() {
           </section>
         </div>
       )}
+
+      {comparingShipment && (
+        <CarrierComparison
+          shipment={comparingShipment}
+          onClose={() => setComparingShipment(null)}
+        />
+      )}
+
     </main>
   );
 }

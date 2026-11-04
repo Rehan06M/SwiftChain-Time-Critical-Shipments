@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import carrierRoutes from "./routes/carrier.routes.js";
 
 import { verifyDatabase, db } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -108,6 +109,7 @@ app.get("/api/health", async (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/shipments", shipmentRoutes);
+app.use("/api/carriers", carrierRoutes);
 
 // Temporary protected role endpoints.
 // Functional dashboards will be built later.

@@ -1155,3 +1155,341 @@
   }
 }
 
+/* =====================================
+   STEP 6 - SMART CARRIER MATCHING
+   ===================================== */
+
+.carrier-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 11, 12, 0.75);
+}
+
+.carrier-modal {
+  width: 100%;
+  max-width: 1050px;
+  max-height: 94vh;
+  overflow-y: auto;
+  background: var(--soft-surface);
+  border-radius: 18px;
+  padding: 32px;
+  color: var(--charcoal);
+}
+
+.carrier-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.carrier-modal-header h2 {
+  margin: 10px 0;
+  font-family: var(--display-font);
+  font-size: clamp(25px, 3vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.carrier-modal-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-text);
+}
+
+.carrier-shipment-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.carrier-shipment-summary > div {
+  padding: 17px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.carrier-shipment-summary span {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 11px;
+  color: var(--muted-text);
+}
+
+.carrier-shipment-summary strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-transform: capitalize;
+}
+
+.carrier-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.carrier-toolbar p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-text);
+}
+
+.carrier-toolbar button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.carrier-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.carrier-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.carrier-card:first-child {
+  border-color: var(--deep-teal);
+  box-shadow: 0 8px 26px rgba(53,104,102,0.08);
+}
+
+.carrier-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.carrier-name-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.carrier-icon {
+  width: 43px;
+  height: 43px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--white);
+  background: var(--deep-teal);
+  border-radius: 10px;
+}
+
+.carrier-rank {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--deep-teal);
+}
+
+.carrier-card h3 {
+  margin: 0 0 7px;
+  font-family: var(--display-font);
+  font-size: 19px;
+}
+
+.carrier-name-group p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-text);
+}
+
+.carrier-match-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.carrier-match-score strong {
+  font-family: var(--display-font);
+  font-size: 30px;
+  color: var(--racing-orange);
+}
+
+.carrier-match-score span {
+  font-size: 10px;
+  color: var(--muted-text);
+}
+
+.carrier-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.carrier-metrics > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.carrier-metrics svg {
+  color: var(--deep-teal);
+}
+
+.carrier-metrics span {
+  color: var(--muted-text);
+  font-size: 10px;
+}
+
+.carrier-metrics strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.carrier-feasibility {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: auto;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.carrier-feasibility svg {
+  flex-shrink: 0;
+}
+
+.carrier-feasibility.feasible {
+  background: #e4f2ed;
+  color: #27624e;
+}
+
+.carrier-feasibility.infeasible {
+  background: #fff0eb;
+  color: #a7351d;
+}
+
+.carrier-feasibility strong {
+  font-size: 12px;
+}
+
+.carrier-feasibility p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.carrier-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  padding: 30px;
+  text-align: center;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted-text);
+}
+
+.carrier-message h3 {
+  margin: 0;
+  color: var(--charcoal);
+}
+
+.carrier-message p {
+  margin: 0;
+  max-width: 440px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.carrier-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.carrier-modal-footer p {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 850px) {
+  .carrier-shipment-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .carrier-results {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .carrier-modal-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .carrier-modal {
+    max-height: 100dvh;
+    border-radius: 0;
+    padding: 22px 16px;
+  }
+
+  .carrier-shipment-summary {
+    gap: 8px;
+  }
+
+  .carrier-shipment-summary > div {
+    padding: 12px;
+  }
+
+  .carrier-card {
+    padding: 18px;
+  }
+
+  .carrier-metrics {
+    gap: 8px;
+  }
+
+  .carrier-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .carrier-modal-footer button {
+    width: 100%;
+  }
+}
+
