@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test:urgency": "tsx src/services/urgency.test.ts",
-    "test:carriers": "tsx src/services/carrier-matching.test.ts"
+    "test:carriers": "tsx src/services/carrier-matching.test.ts",
+    "test:pricing": "tsx src/services/pricing.test.ts"
   },
   "keywords": [],
   "author": "",

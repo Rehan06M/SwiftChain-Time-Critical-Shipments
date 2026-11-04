@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import carrierRoutes from "./routes/carrier.routes.js";
+import commerceRoutes from "./routes/commerce.routes.js";
 
 import { verifyDatabase, db } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -110,6 +111,19 @@ app.get("/api/health", async (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/shipments", shipmentRoutes);
 app.use("/api/carriers", carrierRoutes);
+
+// Prevent caching of pricing and booking responses
+app.use("/api/commerce", (_req, res, next) => {
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate"
+  );
+
+  next();
+});
+
+// Register Step 7 Commerce APIs
+app.use("/api/commerce", commerceRoutes);
 
 // Temporary protected role endpoints.
 // Functional dashboards will be built later.

@@ -1,4 +1,4 @@
-import CarrierComparison from "../components/CarrierComparison";
+
 import {
   useCallback,
   useEffect,
@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { Link } from "react-router-dom";
+
 import {
   Truck,
   Plus,
@@ -18,10 +19,16 @@ import {
   Pencil,
   LogOut,
   RefreshCw,
+  ReceiptText,
+  X,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+
 import ShipmentForm from "../components/ShipmentForm";
+import CarrierComparison from "../components/CarrierComparison";
+import PricingBooking from "../components/PricingBooking";
+import BookingSummary from "../components/BookingSummary";
 
 import {
   listShipments,
@@ -31,6 +38,10 @@ import {
   type Shipment,
   type ShipmentInput,
 } from "../lib/shipments";
+
+// ========================================
+// FORMATTING HELPERS
+// ========================================
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString("en-IN", {
@@ -45,29 +56,50 @@ const formatMoney = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
+// ========================================
+// SHIPPER DASHBOARD
+// ========================================
+
 export default function Shipments() {
   const { user, logout } = useAuth();
+
+  // ========================================
+  // STATE
+  // ========================================
 
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Shipment | null>(null);
-  const [selected, setSelected] = useState<Shipment | null>(null);
 
+  const [editing, setEditing] =
+    useState<Shipment | null>(null);
 
-  const selectedShipment = selected
-    ? shipments.find(
-      (shipment) => shipment.id === selected.id
-    ) ?? selected
-    : null;
-
-  const [cancellingId, setCancellingId] = useState("");
+  const [selected, setSelected] =
+    useState<Shipment | null>(null);
 
   const [comparingShipment, setComparingShipment] =
     useState<Shipment | null>(null);
 
+  const [pricingShipment, setPricingShipment] =
+    useState<Shipment | null>(null);
+
+  const [cancellingId, setCancellingId] = useState("");
+
+  // Always use the latest loaded shipment
+  // when displaying its details.
+
+  const selectedShipment = selected
+    ? shipments.find(
+        (shipment) => shipment.id === selected.id
+      ) ?? selected
+    : null;
+
+  // ========================================
+  // FETCH SHIPMENTS
+  // ========================================
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +107,7 @@ export default function Shipments() {
 
     try {
       const data = await listShipments();
+
       setShipments(data.shipments);
     } catch (err) {
       setError(
@@ -91,6 +124,9 @@ export default function Shipments() {
     void load();
   }, [load]);
 
+  // ========================================
+  // SEARCH AND SORTING
+  // ========================================
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -111,18 +147,27 @@ export default function Shipments() {
       );
     });
 
+    const statusOrder = {
+      created: 0,
+      booked: 1,
+      cancelled: 2,
+    };
+
     return [...matches].sort((a, b) => {
-      // Active shipments first.
       if (a.status !== b.status) {
-        return a.status === "created" ? -1 : 1;
+        return (
+          statusOrder[a.status] -
+          statusOrder[b.status]
+        );
       }
 
-      // Higher urgency scores first.
       if (a.urgency.score !== b.urgency.score) {
-        return b.urgency.score - a.urgency.score;
+        return (
+          b.urgency.score -
+          a.urgency.score
+        );
       }
 
-      // Earlier deadlines first.
       return (
         new Date(a.deadline).getTime() -
         new Date(b.deadline).getTime()
@@ -130,32 +175,46 @@ export default function Shipments() {
     });
   }, [shipments, search]);
 
+  // ========================================
+  // DASHBOARD STATISTICS
+  // ========================================
 
   const activeCount = shipments.filter(
-    (s) => s.status === "created"
+    (shipment) => shipment.status === "created"
+  ).length;
+
+  const bookedCount = shipments.filter(
+    (shipment) => shipment.status === "booked"
   ).length;
 
   const cancelledCount = shipments.filter(
-    (s) => s.status === "cancelled"
+    (shipment) => shipment.status === "cancelled"
   ).length;
 
-
   const criticalCount = shipments.filter(
-    (s) =>
-      s.status === "created" &&
-      s.urgency.level === "Critical"
+    (shipment) =>
+      shipment.status === "created" &&
+      shipment.urgency.level === "Critical"
   ).length;
 
   const highCount = shipments.filter(
-    (s) =>
-      s.status === "created" &&
-      s.urgency.level === "High"
+    (shipment) =>
+      shipment.status === "created" &&
+      shipment.urgency.level === "High"
   ).length;
 
   const earliestDeadline = shipments
-    .filter((s) => s.status === "created")
-    .map((s) => new Date(s.deadline).getTime())
+    .filter(
+      (shipment) => shipment.status === "created"
+    )
+    .map((shipment) =>
+      new Date(shipment.deadline).getTime()
+    )
     .sort((a, b) => a - b)[0];
+
+  // ========================================
+  // CREATE / UPDATE SHIPMENT
+  // ========================================
 
   async function save(input: ShipmentInput) {
     if (editing) {
@@ -166,10 +225,22 @@ export default function Shipments() {
 
     setShowForm(false);
     setEditing(null);
+
     await load();
   }
 
+  // ========================================
+  // CANCEL SHIPMENT
+  // ========================================
+
   async function handleCancel(shipment: Shipment) {
+    if (shipment.status !== "created") {
+      setError(
+        "Only unbooked shipments can be cancelled."
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
       `Cancel shipment ${shipment.trackingCode}?`
     );
@@ -181,7 +252,9 @@ export default function Shipments() {
 
     try {
       await cancelShipment(shipment.id);
+
       setSelected(null);
+
       await load();
     } catch (err) {
       setError(
@@ -194,22 +267,39 @@ export default function Shipments() {
     }
   }
 
+  // ========================================
+  // LOGOUT
+  // ========================================
+
   async function handleLogout() {
     try {
       await logout();
+
       window.location.replace("/");
     } catch {
-      setError("Unable to log out. Please try again.");
+      setError(
+        "Unable to log out. Please try again."
+      );
     }
   }
 
+  // ========================================
+  // RENDER
+  // ========================================
+
   return (
     <main className="dashboard-page">
+
+      {/* ====================================
+          HEADER
+          ==================================== */}
+
       <header className="dashboard-header">
         <Link className="brand" to="/">
           <span className="brand-mark">
             <Truck size={21} />
           </span>
+
           SwiftChain
         </Link>
 
@@ -219,6 +309,7 @@ export default function Shipments() {
           </span>
 
           <button
+            type="button"
             className="logout-button"
             onClick={handleLogout}
           >
@@ -228,7 +319,14 @@ export default function Shipments() {
         </div>
       </header>
 
+      {/* ====================================
+          DASHBOARD CONTENT
+          ==================================== */}
+
       <div className="shipments-container">
+
+        {/* PAGE HEADING */}
+
         <div className="shipments-heading">
           <div>
             <span className="section-eyebrow eyebrow-dark">
@@ -244,6 +342,7 @@ export default function Shipments() {
           </div>
 
           <button
+            type="button"
             className="primary-button create-button"
             onClick={() => {
               setEditing(null);
@@ -255,7 +354,12 @@ export default function Shipments() {
           </button>
         </div>
 
+        {/* ====================================
+            STATISTICS
+            ==================================== */}
+
         <div className="shipment-stats">
+
           <div className="shipment-stat">
             <Package size={23} />
             <span>Total Shipments</span>
@@ -268,6 +372,11 @@ export default function Shipments() {
             <strong>{activeCount}</strong>
           </div>
 
+          <div className="shipment-stat">
+            <CheckCircle2 size={23} />
+            <span>Booked Shipments</span>
+            <strong>{bookedCount}</strong>
+          </div>
 
           <div className="shipment-stat">
             <Clock3 size={23} />
@@ -281,7 +390,6 @@ export default function Shipments() {
             <strong>{highCount}</strong>
           </div>
 
-
           <div className="shipment-stat">
             <XCircle size={23} />
             <span>Cancelled</span>
@@ -291,17 +399,26 @@ export default function Shipments() {
           <div className="shipment-stat">
             <Clock3 size={23} />
             <span>Next Deadline</span>
+
             <strong className="stat-date">
-              {earliestDeadline
+              {earliestDeadline !== undefined
                 ? formatDate(
-                  new Date(earliestDeadline).toISOString()
-                )
+                    new Date(
+                      earliestDeadline
+                    ).toISOString()
+                  )
                 : "—"}
             </strong>
           </div>
+
         </div>
 
+        {/* ====================================
+            SHIPMENT TABLE
+            ==================================== */}
+
         <section className="shipment-list-card">
+
           <div className="shipment-list-top">
             <div>
               <h2>Your Shipments</h2>
@@ -309,20 +426,23 @@ export default function Shipments() {
             </div>
 
             <div className="shipment-tools">
+
               <div className="shipment-search">
                 <Search size={18} />
+
                 <input
                   type="search"
                   aria-label="Search shipments"
                   placeholder="Search shipments..."
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
+                  onChange={(event) =>
+                    setSearch(event.target.value)
                   }
                 />
               </div>
 
               <button
+                type="button"
                 className="icon-button"
                 onClick={() => void load()}
                 aria-label="Refresh shipments"
@@ -330,14 +450,19 @@ export default function Shipments() {
               >
                 <RefreshCw size={19} />
               </button>
+
             </div>
           </div>
+
+          {/* ERRORS */}
 
           {error && (
             <div className="form-alert" role="alert">
               {error}
             </div>
           )}
+
+          {/* LOADING / EMPTY / DATA */}
 
           {loading ? (
             <div className="shipments-empty">
@@ -346,11 +471,13 @@ export default function Shipments() {
           ) : filtered.length === 0 ? (
             <div className="shipments-empty">
               <Package size={35} />
+
               <h3>
                 {search
                   ? "No matching shipments"
                   : "No shipments created yet"}
               </h3>
+
               <p>
                 {search
                   ? "Try a different search."
@@ -360,6 +487,7 @@ export default function Shipments() {
           ) : (
             <div className="shipment-table-scroll">
               <table className="shipment-table">
+
                 <thead>
                   <tr>
                     <th>Shipment ID</th>
@@ -375,24 +503,42 @@ export default function Shipments() {
                 <tbody>
                   {filtered.map((shipment) => (
                     <tr key={shipment.id}>
+
+                      {/* TRACKING CODE */}
+
                       <td>
                         <strong>
                           {shipment.trackingCode}
                         </strong>
                       </td>
 
+                      {/* ROUTE */}
+
                       <td>
                         {shipment.originCity}
-                        <span className="route-arrow"> → </span>
+
+                        <span className="route-arrow">
+                          {" "}→{" "}
+                        </span>
+
                         {shipment.destinationCity}
                       </td>
 
-                      <td>{shipment.cargoType}</td>
+                      {/* CARGO */}
 
                       <td>
-                        {formatDate(shipment.deadline)}
+                        {shipment.cargoType}
                       </td>
 
+                      {/* DEADLINE */}
+
+                      <td>
+                        {formatDate(
+                          shipment.deadline
+                        )}
+                      </td>
+
+                      {/* URGENCY */}
 
                       <td>
                         {shipment.status === "cancelled" ? (
@@ -401,8 +547,11 @@ export default function Shipments() {
                           </span>
                         ) : (
                           <div className="urgency-cell">
+
                             <span
-                              className={`urgency-badge urgency-${shipment.urgency.level.toLowerCase()}`}
+                              className={
+                                `urgency-badge urgency-${shipment.urgency.level.toLowerCase()}`
+                              }
                             >
                               {shipment.urgency.level}
                             </span>
@@ -410,22 +559,32 @@ export default function Shipments() {
                             <strong className="urgency-number">
                               {shipment.urgency.score}/100
                             </strong>
+
                           </div>
                         )}
                       </td>
 
+                      {/* STATUS */}
 
                       <td>
                         <span
-                          className={`shipment-status ${shipment.status}`}
+                          className={
+                            `shipment-status ${shipment.status}`
+                          }
                         >
                           {shipment.status}
                         </span>
                       </td>
 
+                      {/* ACTIONS */}
+
                       <td>
                         <div className="table-actions">
+
+                          {/* VIEW */}
+
                           <button
+                            type="button"
                             onClick={() =>
                               setSelected(shipment)
                             }
@@ -433,12 +592,15 @@ export default function Shipments() {
                             View
                           </button>
 
+                          {/* COMPARE CARRIERS */}
 
                           {shipment.status === "created" && (
                             <button
                               type="button"
                               onClick={() =>
-                                setComparingShipment(shipment)
+                                setComparingShipment(
+                                  shipment
+                                )
                               }
                             >
                               <Truck size={14} />
@@ -446,9 +608,27 @@ export default function Shipments() {
                             </button>
                           )}
 
+                          {/* GET QUOTE */}
 
                           {shipment.status === "created" && (
                             <button
+                              type="button"
+                              onClick={() =>
+                                setPricingShipment(
+                                  shipment
+                                )
+                              }
+                            >
+                              <ReceiptText size={14} />
+                              Get Quote
+                            </button>
+                          )}
+
+                          {/* EDIT */}
+
+                          {shipment.status === "created" && (
+                            <button
+                              type="button"
                               onClick={() => {
                                 setEditing(shipment);
                                 setShowForm(true);
@@ -458,16 +638,24 @@ export default function Shipments() {
                               Edit
                             </button>
                           )}
+
                         </div>
                       </td>
+
                     </tr>
                   ))}
                 </tbody>
+
               </table>
             </div>
           )}
+
         </section>
       </div>
+
+      {/* ====================================
+          CREATE / EDIT MODAL
+          ==================================== */}
 
       {showForm && (
         <ShipmentForm
@@ -481,111 +669,195 @@ export default function Shipments() {
         />
       )}
 
+      {/* ====================================
+          VIEW SHIPMENT MODAL
+          ==================================== */}
+
       {selectedShipment && (
         <div className="shipment-form-overlay">
-          <section className="shipment-detail-panel">
+
+          <section
+            className="shipment-detail-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shipment-details-title"
+          >
+
             <div className="shipment-form-header">
               <div>
                 <span className="section-eyebrow eyebrow-dark">
                   SHIPMENT DETAILS
                 </span>
-                <h2>{selectedShipment.trackingCode}</h2>
+
+                <h2 id="shipment-details-title">
+                  {selectedShipment.trackingCode}
+                </h2>
               </div>
 
               <button
+                type="button"
                 className="icon-button"
                 onClick={() => setSelected(null)}
+                aria-label="Close shipment details"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
 
+            {/* SHIPMENT DETAILS */}
+
             <div className="shipment-detail-grid">
+
               <div>
                 <span>Pickup</span>
-                <strong>{selectedShipment.originCity}</strong>
-                <p>{selectedShipment.originAddress}</p>
+
+                <strong>
+                  {selectedShipment.originCity}
+                </strong>
+
+                <p>
+                  {selectedShipment.originAddress}
+                </p>
               </div>
 
               <div>
                 <span>Destination</span>
-                <strong>{selectedShipment.destinationCity}</strong>
-                <p>{selectedShipment.destinationAddress}</p>
+
+                <strong>
+                  {selectedShipment.destinationCity}
+                </strong>
+
+                <p>
+                  {selectedShipment.destinationAddress}
+                </p>
               </div>
 
               <div>
                 <span>Cargo</span>
-                <strong>{selectedShipment.cargoDescription}</strong>
-                <p>{selectedShipment.cargoType}</p>
+
+                <strong>
+                  {selectedShipment.cargoDescription}
+                </strong>
+
+                <p>
+                  {selectedShipment.cargoType}
+                </p>
               </div>
 
               <div>
                 <span>Weight</span>
-                <strong>{selectedShipment.weightKg} kg</strong>
+
+                <strong>
+                  {selectedShipment.weightKg} kg
+                </strong>
               </div>
 
               <div>
                 <span>Delivery Deadline</span>
-                <strong>{formatDate(selectedShipment.deadline)}</strong>
+
+                <strong>
+                  {formatDate(
+                    selectedShipment.deadline
+                  )}
+                </strong>
               </div>
 
               <div>
                 <span>Delay Impact</span>
+
                 <strong>
-                  {formatMoney(selectedShipment.delayCostPerHour)}/hour
+                  {formatMoney(
+                    selectedShipment.delayCostPerHour
+                  )}/hour
                 </strong>
               </div>
 
+              {/* ====================================
+                  URGENCY ASSESSMENT
+                  ==================================== */}
 
               <div className="form-wide urgency-detail-card">
                 <span>URGENCY ASSESSMENT</span>
 
                 {selectedShipment.status === "cancelled" ? (
-                  <p>This shipment has been cancelled.</p>
+                  <p>
+                    This shipment has been cancelled.
+                  </p>
                 ) : (
                   <>
                     <div className="urgency-detail-head">
+
                       <strong>
                         {selectedShipment.urgency.score}/100
                       </strong>
 
                       <span
-                        className={`urgency-badge urgency-${selectedShipment.urgency.level.toLowerCase()}`}
+                        className={
+                          `urgency-badge urgency-${selectedShipment.urgency.level.toLowerCase()}`
+                        }
                       >
                         {selectedShipment.urgency.level}
                       </span>
+
                     </div>
+
+                    {/* URGENCY PROGRESS BAR */}
 
                     <div className="urgency-progress">
                       <div
                         style={{
-                          width: `${selectedShipment.urgency.score}%`,
+                          width:
+                            `${selectedShipment.urgency.score}%`,
                         }}
                       />
                     </div>
 
+                    {/* URGENCY BREAKDOWN */}
+
                     <div className="urgency-breakdown">
+
                       <p>
-                        <strong>Deadline:</strong>{" "}
-                        {selectedShipment.urgency.breakdown.deadlineScore}/100
+                        <strong>
+                          Deadline:
+                        </strong>{" "}
+                        {
+                          selectedShipment.urgency.breakdown
+                            .deadlineScore
+                        }/100
                       </p>
 
                       <p>
-                        <strong>Business impact:</strong>{" "}
-                        {selectedShipment.urgency.breakdown.impactScore}/100
+                        <strong>
+                          Business impact:
+                        </strong>{" "}
+                        {
+                          selectedShipment.urgency.breakdown
+                            .impactScore
+                        }/100
                       </p>
 
                       <p>
-                        <strong>Cargo criticality:</strong>{" "}
-                        {selectedShipment.urgency.breakdown.cargoScore}/100
+                        <strong>
+                          Cargo criticality:
+                        </strong>{" "}
+                        {
+                          selectedShipment.urgency.breakdown
+                            .cargoScore
+                        }/100
                       </p>
 
                       <p>
-                        <strong>Time remaining:</strong>{" "}
-                        {selectedShipment.urgency.breakdown.isOverdue
-                          ? "Deadline passed"
-                          : `${selectedShipment.urgency.breakdown.hoursRemaining} hours`}
+                        <strong>
+                          Time remaining:
+                        </strong>{" "}
+                        {
+                          selectedShipment.urgency.breakdown
+                            .isOverdue
+                            ? "Deadline passed"
+                            : `${selectedShipment.urgency.breakdown.hoursRemaining} hours`
+                        }
                       </p>
+
                     </div>
 
                     <p className="urgency-explanation">
@@ -598,15 +870,36 @@ export default function Shipments() {
                 )}
               </div>
 
+              {/* SPECIAL INSTRUCTIONS */}
 
               <div className="form-wide">
                 <span>Special Instructions</span>
-                <p>{selectedShipment.notes || "None"}</p>
+
+                <p>
+                  {selectedShipment.notes || "None"}
+                </p>
               </div>
+
             </div>
 
+            {/* ====================================
+                CONFIRMED BOOKING
+                ==================================== */}
+
+            {selectedShipment.status === "booked" && (
+              <BookingSummary
+                shipmentId={selectedShipment.id}
+              />
+            )}
+
+            {/* ====================================
+                MODAL ACTIONS
+                ==================================== */}
+
             <div className="shipment-form-actions">
+
               <button
+                type="button"
                 className="secondary-button"
                 onClick={() => setSelected(null)}
               >
@@ -615,26 +908,53 @@ export default function Shipments() {
 
               {selectedShipment.status === "created" && (
                 <button
+                  type="button"
                   className="danger-button"
-                  disabled={cancellingId === selectedShipment.id}
+                  disabled={
+                    cancellingId === selectedShipment.id
+                  }
                   onClick={() =>
-                    void handleCancel(selectedShipment)
+                    void handleCancel(
+                      selectedShipment
+                    )
                   }
                 >
-                  {cancellingId
+                  {cancellingId === selectedShipment.id
                     ? "Cancelling..."
                     : "Cancel Shipment"}
                 </button>
               )}
+
             </div>
+
           </section>
         </div>
       )}
 
+      {/* ====================================
+          CARRIER COMPARISON
+          ==================================== */}
+
       {comparingShipment && (
         <CarrierComparison
           shipment={comparingShipment}
-          onClose={() => setComparingShipment(null)}
+          onClose={() =>
+            setComparingShipment(null)
+          }
+        />
+      )}
+
+      {/* ====================================
+          PRICING AND BOOKING
+          ==================================== */}
+
+      {pricingShipment && (
+        <PricingBooking
+          shipment={pricingShipment}
+          onClose={() =>
+            setPricingShipment(null)
+          }
+          onBooked={load}
         />
       )}
 

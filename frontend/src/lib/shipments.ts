@@ -54,7 +54,7 @@ export interface Shipment extends ShipmentInput {
   id: string;
   trackingCode: string;
   organizationId: string;
-  status: "created" | "cancelled";
+  status: "created" | "booked" | "cancelled";
   createdAt: string;
   updatedAt: string;
 
