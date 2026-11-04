@@ -1,6 +1,6 @@
 
 import "dotenv/config";
-
+import shipmentRoutes from "./routes/shipment.routes.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -107,6 +107,7 @@ app.get("/api/health", async (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/shipments", shipmentRoutes);
 
 // Temporary protected role endpoints.
 // Functional dashboards will be built later.

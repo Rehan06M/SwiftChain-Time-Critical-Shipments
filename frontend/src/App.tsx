@@ -1,6 +1,6 @@
 
 import { useEffect } from "react";
-
+import Shipments from "./pages/Shipments";
 import {
   BrowserRouter,
   Navigate,
@@ -97,6 +97,13 @@ function App() {
               path="/dashboard"
               element={<DashboardRedirect />}
             />
+
+
+            <Route
+              path="/dashboard/shipper"
+              element={<Shipments />}
+            />
+
 
             <Route
               path="/dashboard/:role"
