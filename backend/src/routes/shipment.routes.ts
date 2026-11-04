@@ -1,6 +1,11 @@
-
+import type {
+    CargoCategory,
+} from "../config/urgency.config.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import {
+    calculateUrgency,
+} from "../services/urgency.service.js";
 
 import { db } from "../config/db.js";
 import {
@@ -34,10 +39,52 @@ const shipmentSelect = `
     delay_cost_per_hour::float8 AS "delayCostPerHour",
     notes,
     status,
+    urgency_score AS "storedUrgencyScore",
+    urgency_level AS "storedUrgencyLevel",
+    urgency_calculated_at AS "storedUrgencyCalculatedAt",
     created_at AS "createdAt",
     updated_at AS "updatedAt"
   FROM public.shipments
 `;
+
+
+
+interface ShipmentRow {
+    id: string;
+    trackingCode: string;
+    organizationId: string;
+    originCity: string;
+    originAddress: string;
+    destinationCity: string;
+    destinationAddress: string;
+    cargoDescription: string;
+    cargoType: CargoCategory;
+    weightKg: number;
+    deadline: string | Date;
+    delayCostPerHour: number;
+    notes: string | null;
+    status: "created" | "cancelled";
+    createdAt: string | Date;
+    updatedAt: string | Date;
+    storedUrgencyScore: number | null;
+    storedUrgencyLevel: string | null;
+    storedUrgencyCalculatedAt: string | Date | null;
+}
+
+function scoreShipment(shipment: ShipmentRow) {
+    const urgency = calculateUrgency({
+        deadline: shipment.deadline,
+        delayCostPerHour: Number(
+            shipment.delayCostPerHour
+        ),
+        cargoType: shipment.cargoType,
+    });
+
+    return {
+        ...shipment,
+        urgency,
+    };
+}
 
 function trackingCode() {
     return (
@@ -155,7 +202,25 @@ router.get("/", async (req: AuthRequest, res) => {
             [workspace, req.authUser!.id]
         );
 
-        res.json({ shipments: result.rows });
+
+
+        const shipments = (result.rows as ShipmentRow[])
+            .map(scoreShipment)
+            .sort((a, b) => {
+                const scoreDifference =
+                    b.urgency.score - a.urgency.score;
+
+                if (scoreDifference !== 0) {
+                    return scoreDifference;
+                }
+
+                return (
+                    new Date(a.deadline).getTime() -
+                    new Date(b.deadline).getTime()
+                );
+            });
+        res.json({ shipments });
+
     } catch (error) {
         console.error("List shipments:", error);
         res.status(500).json({
@@ -189,30 +254,47 @@ router.post("/", async (req: AuthRequest, res) => {
         const id = randomUUID();
         const code = trackingCode();
 
+        const urgency = calculateUrgency({
+            deadline: parsed.data.deadline,
+            delayCostPerHour:
+                parsed.data.delayCostPerHour,
+            cargoType: parsed.data.cargoType,
+        });
+
+
+
         await db.query(
             `
-        INSERT INTO public.shipments (
-          id, tracking_code, organization_id, created_by,
-          origin_city, origin_address,
-          destination_city, destination_address,
-          cargo_description, cargo_type, weight_kg,
-          deadline, delay_cost_per_hour, notes
-        )
-        VALUES (
-          $1, $2, $3, $4,
-          $5, $6, $7, $8,
-          $9, $10, $11,
-          $12, $13, $14
-        )
-      `,
+    INSERT INTO public.shipments (
+      id, tracking_code, organization_id, created_by,
+      origin_city, origin_address,
+      destination_city, destination_address,
+      cargo_description, cargo_type, weight_kg,
+      deadline, delay_cost_per_hour, notes,
+      urgency_score, urgency_level,
+      urgency_breakdown, urgency_calculated_at
+    )
+    VALUES (
+      $1, $2, $3, $4,
+      $5, $6, $7, $8,
+      $9, $10, $11,
+      $12, $13, $14,
+      $15, $16, $17, $18
+    )
+  `,
             [
                 id,
                 code,
                 workspace,
                 req.authUser!.id,
                 ...values(parsed.data),
+                urgency.score,
+                urgency.level,
+                JSON.stringify(urgency.breakdown),
+                urgency.calculatedAt,
             ]
         );
+
 
         const result = await db.query(
             `${shipmentSelect} WHERE id = $1`,
@@ -221,7 +303,7 @@ router.post("/", async (req: AuthRequest, res) => {
 
         res.status(201).json({
             message: "Shipment created successfully",
-            shipment: result.rows[0],
+            shipment: scoreShipment(result.rows[0]),
         });
     } catch (error) {
         console.error("Create shipment:", error);
@@ -250,7 +332,9 @@ router.get("/:id", async (req: AuthRequest, res) => {
             return;
         }
 
-        res.json({ shipment: result.rows[0] });
+        res.json({
+            shipment: scoreShipment(result.rows[0]),
+        });
     } catch (error) {
         console.error("Get shipment:", error);
         res.status(500).json({
@@ -271,33 +355,50 @@ router.put("/:id", async (req: AuthRequest, res) => {
         return;
     }
 
+    const urgency = calculateUrgency({
+        deadline: parsed.data.deadline,
+        delayCostPerHour:
+            parsed.data.delayCostPerHour,
+        cargoType: parsed.data.cargoType,
+    });
+
     try {
+
         const result = await db.query(
             `
-        UPDATE public.shipments
-        SET
-          origin_city = $1,
-          origin_address = $2,
-          destination_city = $3,
-          destination_address = $4,
-          cargo_description = $5,
-          cargo_type = $6,
-          weight_kg = $7,
-          deadline = $8,
-          delay_cost_per_hour = $9,
-          notes = $10,
-          updated_at = NOW()
-        WHERE id = $11
-          AND created_by = $12
-          AND status = 'created'
-        RETURNING id
-      `,
+    UPDATE public.shipments
+    SET
+      origin_city = $1,
+      origin_address = $2,
+      destination_city = $3,
+      destination_address = $4,
+      cargo_description = $5,
+      cargo_type = $6,
+      weight_kg = $7,
+      deadline = $8,
+      delay_cost_per_hour = $9,
+      notes = $10,
+      urgency_score = $11,
+      urgency_level = $12,
+      urgency_breakdown = $13,
+      urgency_calculated_at = $14,
+      updated_at = NOW()
+    WHERE id = $15
+      AND created_by = $16
+      AND status = 'created'
+    RETURNING id
+  `,
             [
                 ...values(parsed.data),
+                urgency.score,
+                urgency.level,
+                JSON.stringify(urgency.breakdown),
+                urgency.calculatedAt,
                 req.params.id,
                 req.authUser!.id,
             ]
         );
+
 
         if (!result.rows[0]) {
             res.status(404).json({
@@ -313,7 +414,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
 
         res.json({
             message: "Shipment updated successfully",
-            shipment: updated.rows[0],
+            shipment: scoreShipment(updated.rows[0]),
         });
     } catch (error) {
         console.error("Update shipment:", error);

@@ -1005,3 +1005,153 @@
   }
 }
 
+
+/* =====================================
+   STEP 5 - URGENCY SCORING
+   ===================================== */
+
+.urgency-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.urgency-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 11px;
+  border-radius: 30px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.urgency-critical {
+  background: #fde9e1;
+  color: #a7351d;
+}
+
+.urgency-high {
+  background: #fff0df;
+  color: #97510b;
+}
+
+.urgency-medium {
+  background: #fff5d9;
+  color: #80610a;
+}
+
+.urgency-low {
+  background: #e4f2ed;
+  color: #27624e;
+}
+
+.urgency-number {
+  color: var(--charcoal);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.urgency-muted {
+  color: var(--muted-text);
+  font-size: 12px;
+}
+
+.urgency-detail-card {
+  background: var(--white) !important;
+  border: 1px solid var(--border);
+}
+
+.urgency-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0 18px;
+}
+
+.urgency-detail-head > strong {
+  font-family: var(--display-font);
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--charcoal);
+}
+
+.urgency-progress {
+  height: 10px;
+  overflow: hidden;
+  background: var(--soft-surface);
+  border-radius: 10px;
+}
+
+.urgency-progress > div {
+  height: 100%;
+  background: var(--racing-orange);
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.urgency-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.urgency-breakdown p {
+  margin: 0;
+  padding: 12px;
+  background: var(--soft-surface);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.urgency-breakdown strong {
+  color: var(--charcoal);
+  font-weight: 700;
+}
+
+.urgency-explanation {
+  margin-top: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-text);
+}
+
+/* Six dashboard statistic cards */
+
+.shipment-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Accommodate the urgency column */
+
+.shipment-table {
+  min-width: 980px;
+}
+
+@media (max-width: 1000px) {
+  .shipment-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .shipment-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .urgency-breakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .urgency-detail-head > strong {
+    font-size: 30px;
+  }
+}
+

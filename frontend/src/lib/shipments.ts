@@ -22,6 +22,34 @@ export interface ShipmentInput {
   notes: string;
 }
 
+
+export type UrgencyLevel =
+  | "Critical"
+  | "High"
+  | "Medium"
+  | "Low";
+
+export interface UrgencyResult {
+  score: number;
+  level: UrgencyLevel;
+
+  breakdown: {
+    deadlineScore: number;
+    impactScore: number;
+    cargoScore: number;
+
+    deadlineContribution: number;
+    impactContribution: number;
+    cargoContribution: number;
+
+    hoursRemaining: number;
+    isOverdue: boolean;
+  };
+
+  calculatedAt: string;
+}
+
+
 export interface Shipment extends ShipmentInput {
   id: string;
   trackingCode: string;
@@ -29,6 +57,13 @@ export interface Shipment extends ShipmentInput {
   status: "created" | "cancelled";
   createdAt: string;
   updatedAt: string;
+
+  urgency: UrgencyResult;
+
+  storedUrgencyScore: number | null;
+  storedUrgencyLevel: UrgencyLevel | null;
+  storedUrgencyCalculatedAt: string | null;
+
 }
 
 export function listShipments() {
