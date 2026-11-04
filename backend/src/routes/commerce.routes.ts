@@ -588,7 +588,23 @@ router.get(
               AS "totalCostInr",
             b.estimated_arrival AS "estimatedArrival",
             b.status,
-            b.created_at AS "createdAt"
+            b.created_at AS "createdAt",
+            q.total_cost_inr::float8 AS "originalCostInr",
+
+COALESCE(
+  (
+    SELECT SUM(action.additional_cost_inr)
+    FROM public.shipment_recovery_actions action
+    WHERE action.shipment_id = b.shipment_id
+  ),
+  0
+)::float8 AS "recoveryCostInr",
+
+(
+  SELECT COUNT(*)::integer
+  FROM public.shipment_recovery_actions action
+  WHERE action.shipment_id = b.shipment_id
+) AS "recoveryCount"
           FROM public.shipment_bookings b
           JOIN public.pricing_quotes q
             ON q.id = b.quote_id

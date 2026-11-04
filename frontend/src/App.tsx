@@ -7,6 +7,7 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import DispatcherRecovery from "./pages/DispatcherRecovery";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -115,6 +116,15 @@ function App() {
             path="*"
             element={<Navigate to="/" replace />}
           />
+
+          <Route
+  element={<ProtectedRoute allowedRoles={["dispatcher"]} />}
+>
+  <Route
+    path="/dispatcher/recovery"
+    element={<DispatcherRecovery />}
+  />
+</Route>
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:urgency": "tsx src/services/urgency.test.ts",
     "test:carriers": "tsx src/services/carrier-matching.test.ts",
-    "test:pricing": "tsx src/services/pricing.test.ts"
+    "test:pricing": "tsx src/services/pricing.test.ts",
+    "dev:sla": "tsx watch src/workers/sla.worker.ts"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.7.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
@@ -28,6 +30,7 @@
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1",
+    "socket.io": "^4.8.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {

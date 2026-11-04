@@ -39,6 +39,11 @@ import {
   type ShipmentInput,
 } from "../lib/shipments";
 
+import ShipmentTracking from "../components/ShipmentTracking";
+import ShipmentAlerts from "../components/ShipmentAlerts";
+
+import DispatcherAssignment from "../components/DispatcherAssignment";
+
 // ========================================
 // FORMATTING HELPERS
 // ========================================
@@ -354,6 +359,7 @@ export default function Shipments() {
           </button>
         </div>
 
+            <ShipmentAlerts />
         {/* ====================================
             STATISTICS
             ==================================== */}
@@ -890,7 +896,22 @@ export default function Shipments() {
               <BookingSummary
                 shipmentId={selectedShipment.id}
               />
+              
             )}
+
+            {selectedShipment.status === "booked" && (
+  <ShipmentTracking
+    key={selectedShipment.id}
+    shipmentId={selectedShipment.id}
+  />
+)}
+
+{selectedShipment.status === "booked" && (
+  <DispatcherAssignment
+    key={`dispatcher-${selectedShipment.id}`}
+    shipmentId={selectedShipment.id}
+  />
+)}
 
             {/* ====================================
                 MODAL ACTIONS

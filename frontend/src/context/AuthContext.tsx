@@ -44,21 +44,21 @@ export function AuthProvider({
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
-    setLoading(true);
+  // loading starts as true on initial app load.
+  // Background session checks should preserve the current page.
+  try {
+    const data = await apiRequest<{ user: User }>(
+      "/auth/me",
+      { cache: "no-store" }
+    );
 
-    try {
-      const data = await apiRequest<{ user: User }>(
-        "/auth/me",
-        { cache: "no-store" }
-      );
-
-      setUser(data.user);
-    } catch {
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    setUser(data.user);
+  } catch {
+    setUser(null);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     void refreshSession();

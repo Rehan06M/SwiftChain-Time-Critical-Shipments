@@ -45,6 +45,9 @@ export interface Booking {
   estimatedArrival: string;
   status: "confirmed";
   createdAt?: string;
+  originalCostInr: number;
+recoveryCostInr: number;
+recoveryCount: number;
 }
 
 export function calculateQuotes(
