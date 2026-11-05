@@ -7,14 +7,23 @@ const predictionSchema = z.object({
   remaining_minutes: z.number().finite().nonnegative(),
   slack_minutes: z.number().finite(),
   predicted_late_by_minutes: z.number().finite().nonnegative(),
+
   risk_status: z.enum([
     "On Track",
     "At Risk",
     "Critical Risk",
     "Delayed",
   ]),
+
   explanation: z.string(),
   model_version: z.string(),
+
+  breakdown: z.object({
+    travel_minutes: z.number().finite().nonnegative(),
+    pickup_minutes: z.number().finite().nonnegative(),
+    handling_minutes: z.number().finite().nonnegative(),
+    disruption_minutes: z.number().finite().nonnegative(),
+  }),
 });
 
 export function distanceKm(
@@ -46,6 +55,8 @@ export async function predictETA(input: {
   remaining_distance_km: number;
   average_speed_kmh: number;
   pickup_minutes: number;
+  handling_minutes?: number;
+  disruption_minutes?: number;
 }) {
   const baseUrl =
     process.env.INTELLIGENCE_SERVICE_URL ??

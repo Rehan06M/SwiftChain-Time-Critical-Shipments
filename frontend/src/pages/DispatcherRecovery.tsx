@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "../lib/api";
+import TransitRecovery from "../components/TransitRecovery";
 
 interface AssignedShipment {
   id: string;
@@ -139,9 +140,10 @@ export default function DispatcherRecovery() {
       <h1>Shipment Recovery</h1>
 
       <p>
-        Review alternatives for assigned shipments before pickup.
-        Additional charges assume no refund of the original booking.
-      </p>
+  Review before-pickup alternatives or configured transfer routes
+  for shipments already moving. Replacement costs are additional;
+  the original booking is not refunded.
+</p>
 
       {message && <div className="form-alert" role="status">{message}</div>}
 
@@ -192,6 +194,8 @@ export default function DispatcherRecovery() {
           </button>
         </section>
       ))}
+
+      <TransitRecovery shipments={shipments} />
 
       {selected && proposals.length > 0 && (
         <section className="tracking-panel">

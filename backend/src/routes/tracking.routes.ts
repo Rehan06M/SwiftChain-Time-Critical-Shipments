@@ -41,6 +41,8 @@ router.get("/:shipmentId", async (req: AuthRequest, res) => {
           origin_latitude::float8 AS "originLatitude",
           origin_longitude::float8 AS "originLongitude",
           destination_latitude::float8 AS "destinationLatitude",
+          route_revision AS "routeRevision",
+recovery_route AS "recoveryRoute",
           destination_longitude::float8 AS "destinationLongitude"
         FROM public.shipments
         WHERE id = $1
@@ -139,6 +141,7 @@ const trackingUpdateSchema = z.discriminatedUnion("eventType", [
     latitude: z.number().finite().min(-90).max(90),
     longitude: z.number().finite().min(-180).max(180),
     message: z.string().trim().max(500).optional(),
+    routeRevision: z.number().int().nonnegative().optional(),
   }).strict(),
 
   z.object({
@@ -150,6 +153,7 @@ const trackingUpdateSchema = z.discriminatedUnion("eventType", [
       "delivered",
     ]),
     message: z.string().trim().max(500).optional(),
+    routeRevision: z.number().int().nonnegative().optional(),
   }).strict(),
 ]);
 
@@ -176,7 +180,7 @@ router.post(
       // Lock the shipment so concurrent updates are processed in order.
       const result = await client.query(
         `
-          SELECT id, status
+          SELECT id, status, route_revision
           FROM public.shipments
           WHERE id = $1 AND created_by = $2
           FOR UPDATE
@@ -194,6 +198,16 @@ router.post(
         });
         return;
       }
+      if (
+  (parsed.data.routeRevision ?? 0) !== shipment.route_revision
+) {
+  await client.query("ROLLBACK");
+
+  res.status(409).json({
+    message: "Route changed. Reload tracking before sending updates.",
+  });
+  return;
+}
 
       if (shipment.status !== "booked") {
         await client.query("ROLLBACK");
@@ -349,7 +363,7 @@ router.put(
 
       const result = await client.query(
         `
-          SELECT id, status
+          SELECT id, status, route_revision
           FROM public.shipments
           WHERE id = $1 AND created_by = $2
           FOR UPDATE
@@ -389,6 +403,32 @@ router.put(
         });
         return;
       }
+
+      const movement = await client.query(
+  `
+    SELECT 1
+    FROM public.shipment_tracking_events
+    WHERE shipment_id = $1
+      AND (
+        event_type = 'location'
+        OR milestone <> 'booked'
+      )
+    LIMIT 1
+  `,
+  [id.data]
+);
+
+if (
+  shipment.route_revision > 0 ||
+  movement.rows.length > 0
+) {
+  await client.query("ROLLBACK");
+
+  res.status(409).json({
+    message: "Route coordinates are locked after movement or transit recovery",
+  });
+  return;
+}
 
       const coordinates = parsed.data;
 

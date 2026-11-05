@@ -21,7 +21,9 @@ import trackingRoutes from "./routes/tracking.routes.js";
 import { attachTrackingSocket } from "./realtime/tracking.socket.js";
 import alertRoutes from "./routes/alert.routes.js";
 import recoveryRoutes from "./routes/recovery.routes.js";
+import transitRecoveryRoutes from "./routes/transit-recovery.routes.js";
 
+import workspaceRoutes from "./routes/workspace.routes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -129,6 +131,8 @@ app.use("/api/carriers", carrierRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/recovery", recoveryRoutes);
+app.use("/api/transit-recovery", transitRecoveryRoutes);
+app.use("/api/workspace", workspaceRoutes);
 // Prevent caching of pricing and booking responses
 app.use("/api/commerce", (_req, res, next) => {
   res.setHeader(

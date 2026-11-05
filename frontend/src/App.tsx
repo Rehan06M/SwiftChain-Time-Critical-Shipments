@@ -1,13 +1,10 @@
-
-import { useEffect } from "react";
-import Shipments from "./pages/Shipments";
+import { useEffect, type ReactNode } from "react";
 import {
   BrowserRouter,
   Navigate,
   Route,
   Routes,
 } from "react-router-dom";
-import DispatcherRecovery from "./pages/DispatcherRecovery";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -15,7 +12,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
-
+import Shipments from "./pages/Shipments";
+import DispatcherRecovery from "./pages/DispatcherRecovery";
 
 function LandingRedirect() {
   useEffect(() => {
@@ -29,7 +27,6 @@ function LandingRedirect() {
   );
 }
 
-
 function DashboardRedirect() {
   const { user } = useAuth();
 
@@ -41,34 +38,23 @@ function DashboardRedirect() {
   );
 }
 
-function GuestOnly({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function GuestOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="loading-screen">
-        Loading...
-      </div>
-    );
+    return <div className="loading-screen">Loading...</div>;
   }
 
   if (user) {
     return (
-      <Navigate
-        to={`/dashboard/${user.role}`}
-        replace
-      />
+      <Navigate to={`/dashboard/${user.role}`} replace />
     );
   }
 
   return <>{children}</>;
 }
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -77,20 +63,12 @@ function App() {
 
           <Route
             path="/login"
-            element={
-              <GuestOnly>
-                <Login />
-              </GuestOnly>
-            }
+            element={<GuestOnly><Login /></GuestOnly>}
           />
 
           <Route
             path="/register"
-            element={
-              <GuestOnly>
-                <Register />
-              </GuestOnly>
-            }
+            element={<GuestOnly><Register /></GuestOnly>}
           />
 
           <Route element={<ProtectedRoute />}>
@@ -98,16 +76,36 @@ function App() {
               path="/dashboard"
               element={<DashboardRedirect />}
             />
+          </Route>
 
-
+          <Route
+            element={<ProtectedRoute allowedRoles={["shipper"]} />}
+          >
             <Route
               path="/dashboard/shipper"
-              element={<Shipments />}
+              element={<Dashboard />}
             />
+            <Route path="/shipments" element={<Shipments />} />
+          </Route>
 
-
+          <Route
+            element={<ProtectedRoute allowedRoles={["dispatcher"]} />}
+          >
             <Route
-              path="/dashboard/:role"
+              path="/dashboard/dispatcher"
+              element={<Dashboard />}
+            />
+            <Route
+              path="/dispatcher/recovery"
+              element={<DispatcherRecovery />}
+            />
+          </Route>
+
+          <Route
+            element={<ProtectedRoute allowedRoles={["carrier"]} />}
+          >
+            <Route
+              path="/dashboard/carrier"
               element={<Dashboard />}
             />
           </Route>
@@ -116,19 +114,8 @@ function App() {
             path="*"
             element={<Navigate to="/" replace />}
           />
-
-          <Route
-  element={<ProtectedRoute allowedRoles={["dispatcher"]} />}
->
-  <Route
-    path="/dispatcher/recovery"
-    element={<DispatcherRecovery />}
-  />
-</Route>
         </Routes>
       </AuthProvider>
     </BrowserRouter>
   );
 }
-
-export default App;

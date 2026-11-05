@@ -1,6 +1,11 @@
 import { db } from "../config/db.js";
 import { distanceKm, predictETA } from "./eta.service.js";
 
+import {
+  recoveryPlanSchema,
+  measureRecoveryRoute,
+} from "./recovery-route.js";
+
 export class ShipmentETAError extends Error {
   constructor(
     message: string,
@@ -22,6 +27,7 @@ export async function evaluateShipmentETA(
       SELECT
         s.id,
         s.created_by,
+        s.recovery_route,
         s.status,
         s.deadline,
         s.origin_latitude::float8 AS origin_latitude,
@@ -101,6 +107,55 @@ export async function evaluateShipmentETA(
       409
     );
   }
+
+  if (shipment.recovery_route) {
+  const plan = recoveryPlanSchema.parse(shipment.recovery_route);
+
+  const current: [number, number] = [
+    shipment.current_longitude ?? plan.points[0]![0],
+    shipment.current_latitude ?? plan.points[0]![1],
+  ];
+
+  const remaining = measureRecoveryRoute(plan, current);
+
+  if (remaining.offRouteKm > 20) {
+    throw new ShipmentETAError(
+      "Latest position is outside the approved recovery route",
+      409
+    );
+  }
+
+  const speed =
+    remaining.remainingTravelMinutes > 0.001 &&
+    remaining.remainingDistanceKm > 0.001
+      ? remaining.remainingDistanceKm /
+        (remaining.remainingTravelMinutes / 60)
+      : 60;
+
+  const prediction = await predictETA({
+    shipment_id: shipment.id,
+    deadline: new Date(shipment.deadline).toISOString(),
+    remaining_distance_km: remaining.remainingDistanceKm,
+    average_speed_kmh: speed,
+    pickup_minutes: remaining.handoffMinutes,
+  });
+
+  return {
+    status: "active" as const,
+    prediction,
+    remainingDistanceKm:
+      Math.round(remaining.remainingDistanceKm * 100) / 100,
+    locationRecordedAt: shipment.location_recorded_at,
+    locationStale: shipment.location_recorded_at
+      ? Date.now() -
+          new Date(shipment.location_recorded_at).getTime() >
+        120_000
+      : true,
+    estimateBasis:
+      `Approved demo recovery route: ${plan.label}; ` +
+      "configured travel times and remaining handoff allowance",
+  };
+}
 
   if (
     !shipment.transit_minutes ||

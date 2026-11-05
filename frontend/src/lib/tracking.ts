@@ -20,6 +20,13 @@ export interface TrackingEvent {
   occurredAt: string;
 }
 
+export interface RecoveryRoute {
+  label: string;
+  points: [number, number][];
+  travelMinutes: number[];
+  handoffMinutes: number;
+}
+
 export interface TrackingData {
   shipment: {
     id: string;
@@ -31,6 +38,8 @@ export interface TrackingData {
     originLongitude: number | null;
     destinationLatitude: number | null;
     destinationLongitude: number | null;
+    routeRevision: number;
+recoveryRoute: RecoveryRoute | null;
   };
   trackingStatus: string;
   latestLocation: {

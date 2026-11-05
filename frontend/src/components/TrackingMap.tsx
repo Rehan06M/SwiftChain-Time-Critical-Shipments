@@ -8,6 +8,7 @@ interface Props {
   origin: MapPoint | null;
   destination: MapPoint | null;
   current: MapPoint | null;
+  routePoints?: MapPoint[];
 }
 
 export default function TrackingMap(props: Props) {
@@ -15,6 +16,7 @@ export default function TrackingMap(props: Props) {
   const latestProps = useRef(props);
   const updateMap = useRef<(() => void) | null>(null);
   const [error, setError] = useState("");
+
 
   latestProps.current = props;
 
@@ -57,10 +59,16 @@ export default function TrackingMap(props: Props) {
     map.addControl(new maplibregl.NavigationControl());
 
     function update() {
+
+
       if (!ready || disposed) return;
 
-      const { origin, destination, current } =
-        latestProps.current;
+      const {
+        origin,
+        destination,
+        current,
+        routePoints,
+      } = latestProps.current;
 
       const points = [
         { key: "origin", point: origin, color: "#16a34a" },
@@ -101,22 +109,31 @@ export default function TrackingMap(props: Props) {
         features:
           origin && destination
             ? [
-                {
-                  type: "Feature",
-                  properties: {},
-                  geometry: {
-                    type: "LineString",
-                    coordinates: [origin, destination],
-                  },
+              {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "LineString",
+                  coordinates:
+                    routePoints && routePoints.length > 1
+                      ? routePoints
+                      : [origin, destination],
                 },
-              ]
+              },
+            ]
             : [],
       });
 
       // Fit once for each route, without resetting the camera
       // for every location update.
       if (origin && destination) {
-        const routeKey = JSON.stringify([origin, destination]);
+        const routeKey = JSON.stringify([
+          origin,
+          destination,
+          routePoints,
+        ]);
+
+
 
         if (routeKey !== fittedRoute) {
           fittedRoute = routeKey;
@@ -124,6 +141,10 @@ export default function TrackingMap(props: Props) {
           const bounds = new maplibregl.LngLatBounds()
             .extend(origin)
             .extend(destination);
+
+          for (const point of routePoints ?? []) {
+            bounds.extend(point);
+          }
 
           if (current) bounds.extend(current);
 
@@ -203,9 +224,13 @@ export default function TrackingMap(props: Props) {
   }, []);
 
   useEffect(() => {
-    updateMap.current?.();
-  }, [props.origin, props.destination, props.current]);
-
+  updateMap.current?.();
+}, [
+  props.origin,
+  props.destination,
+  props.current,
+  props.routePoints,
+]);
   return (
     <div>
       <div
