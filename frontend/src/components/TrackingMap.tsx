@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+// Let Vite bundle and serve MapLibre's worker.
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export type MapPoint = [number, number];
 

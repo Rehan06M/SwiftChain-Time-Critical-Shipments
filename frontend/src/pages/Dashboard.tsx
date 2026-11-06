@@ -17,6 +17,7 @@ import { apiRequest } from "../lib/api";
 import TrackingMap from "../components/TrackingMap";
 import ShipmentAlerts from "../components/ShipmentAlerts";
 import WhatIfSimulator from "../components/WhatIfSimulator";
+import LogisticsCopilot from "../components/LogisticsCopilot";
 
 interface TrackingEvent {
   id: string;
@@ -997,6 +998,13 @@ async function startCarrierSimulation() {
         )}
 
         {user.role === "shipper" && <ShipmentAlerts />}
+        <LogisticsCopilot
+  key={`${user.id}:${selectedId || "workspace"}`}
+  shipmentId={selectedId || undefined}
+  shipmentLabel={selected?.trackingCode}
+/>
+
+{user.role === "shipper" && <ShipmentAlerts />}
       </div>
     </main>
   );

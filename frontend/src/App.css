@@ -2262,3 +2262,104 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ======================================
+   LOGISTICS COPILOT
+   ====================================== */
+
+.logistics-copilot {
+  margin-top: 24px;
+}
+
+.copilot-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.copilot-suggestions button {
+  white-space: normal;
+  text-align: left;
+}
+
+.copilot-form {
+  display: grid;
+  gap: 12px;
+}
+
+.copilot-form label {
+  font-weight: 700;
+}
+
+.copilot-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 95px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--charcoal);
+  font: inherit;
+}
+
+.copilot-form textarea:focus {
+  outline: 2px solid var(--powder-blue);
+  outline-offset: 2px;
+}
+
+.copilot-form > button {
+  justify-self: start;
+}
+
+.copilot-response {
+  margin-top: 24px;
+}
+
+.copilot-answer {
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.copilot-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.copilot-evidence article {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--soft-surface);
+}
+
+.copilot-evidence h3 {
+  margin-top: 0;
+  color: var(--deep-teal);
+}
+
+.copilot-evidence li {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .copilot-evidence {
+    grid-template-columns: 1fr;
+  }
+
+  .copilot-form > button {
+    width: 100%;
+  }
+
+  .copilot-suggestions {
+    flex-direction: column;
+  }
+}

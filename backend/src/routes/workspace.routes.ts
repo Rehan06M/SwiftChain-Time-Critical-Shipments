@@ -619,4 +619,380 @@ router.post(
   }
 );
 
+// Read-only logistics copilot.
+// Reuses the workspace visibility rule for every database request.
+
+const copilotSchema = z.object({
+  question: z.string().trim().min(3).max(500),
+  shipmentId: z.uuid().optional(),
+}).strict();
+
+interface CopilotRow {
+  id: string;
+  trackingCode: string;
+  originCity: string;
+  destinationCity: string;
+  status: string;
+  trackingStatus: string;
+  deadline: Date | string;
+  carrierName: string | null;
+  riskStatus: string | null;
+  estimatedArrival: Date | string | null;
+  evaluatedAt: Date | string | null;
+  assessmentFresh: boolean;
+  locationFresh: boolean;
+  delayExposureInr: number | null;
+  recoveryLabel: string | null;
+  savedProposalCount: number;
+}
+
+router.post("/copilot", async (req: AuthRequest, res) => {
+  res.setHeader("Cache-Control", "no-store");
+
+  const parsed = copilotSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      message: "Enter a question of 3–500 characters.",
+    });
+    return;
+  }
+
+  const { question, shipmentId } = parsed.data;
+
+  const intent =
+    /recover|alternative|proposal|transfer/i.test(question)
+      ? "recovery"
+      : /cost|financial|impact|exposure|money/i.test(question)
+        ? "financial"
+        : /why|explain/i.test(question)
+          ? "explain"
+          : /risk|attention|urgent|late|delay|priority/i.test(question)
+            ? "attention"
+            : /summary|summarize|overview|shipment|status/i.test(question)
+              ? "summary"
+              : "help";
+
+  if (intent === "help") {
+    res.json({
+      answer:
+        "I support shipment summaries, attention checks, risk " +
+        "explanations, financial exposure, and saved recovery " +
+        "proposals. Choose one of the suggested questions.",
+      generatedAt: new Date().toISOString(),
+      scope: "No shipment data requested.",
+      shipments: [],
+    });
+    return;
+  }
+
+  try {
+    const result = await db.query<CopilotRow>(
+      `
+        SELECT
+          s.id,
+          s.tracking_code AS "trackingCode",
+          s.origin_city AS "originCity",
+          s.destination_city AS "destinationCity",
+          s.status,
+          s.deadline,
+
+          COALESCE(milestone.milestone, s.status)
+            AS "trackingStatus",
+
+          carrier.name AS "carrierName",
+          state.risk_status AS "riskStatus",
+          state.estimated_arrival AS "estimatedArrival",
+          state.evaluated_at AS "evaluatedAt",
+
+          (
+            state.evaluated_at IS NOT NULL
+            AND state.evaluated_at >= NOW() - INTERVAL '2 minutes'
+          ) AS "assessmentFresh",
+
+          (
+            location.occurred_at IS NOT NULL
+            AND location.occurred_at >= NOW() - INTERVAL '2 minutes'
+          ) AS "locationFresh",
+
+          CASE
+            WHEN s.status = 'booked'
+              AND COALESCE(milestone.milestone, 'booked') <> 'delivered'
+              AND state.evaluated_at >= NOW() - INTERVAL '2 minutes'
+            THEN ROUND(
+              (
+                GREATEST(
+                  0,
+                  EXTRACT(
+                    EPOCH FROM (state.estimated_arrival - s.deadline)
+                  ) / 3600
+                ) * s.delay_cost_per_hour
+              )::numeric,
+              2
+            )::float8
+            ELSE NULL
+          END AS "delayExposureInr",
+
+          s.recovery_route->>'label' AS "recoveryLabel",
+
+          (
+            SELECT COUNT(*)::integer
+            FROM public.shipment_recovery_proposals proposal
+            WHERE proposal.shipment_id = s.id
+              AND proposal.booking_id = booking.id
+              AND proposal.original_lane_id = booking.carrier_lane_id
+              AND proposal.status = 'pending'
+              AND proposal.expires_at > NOW()
+          ) AS "savedProposalCount"
+
+        FROM public.shipments s
+
+        LEFT JOIN public.shipment_bookings booking
+          ON booking.shipment_id = s.id
+
+        LEFT JOIN public.carrier_service_lanes lane
+          ON lane.id = booking.carrier_lane_id
+
+        LEFT JOIN public.carriers carrier
+          ON carrier.id = lane.carrier_id
+
+        LEFT JOIN public.shipment_sla_state state
+          ON state.shipment_id = s.id
+
+        LEFT JOIN LATERAL (
+          SELECT event.milestone
+          FROM public.shipment_tracking_events event
+          WHERE event.shipment_id = s.id
+            AND event.event_type = 'milestone'
+          ORDER BY event.occurred_at DESC, event.id DESC
+          LIMIT 1
+        ) milestone ON TRUE
+
+        LEFT JOIN LATERAL (
+          SELECT event.occurred_at
+          FROM public.shipment_tracking_events event
+          WHERE event.shipment_id = s.id
+            AND event.latitude IS NOT NULL
+            AND event.longitude IS NOT NULL
+          ORDER BY event.occurred_at DESC, event.id DESC
+          LIMIT 1
+        ) location ON TRUE
+
+        WHERE ${visibility}
+          AND ($3::uuid IS NULL OR s.id = $3::uuid)
+
+        ORDER BY s.created_at DESC, s.id DESC
+        LIMIT 201
+      `,
+      [
+        req.authUser!.id,
+        req.authUser!.role,
+        shipmentId ?? null,
+      ]
+    );
+
+    if (shipmentId && result.rows.length === 0) {
+      res.status(404).json({
+        message: "Shipment not found",
+      });
+      return;
+    }
+
+    const limited = result.rows.length > 200;
+    const rows = result.rows.slice(0, 200);
+    const now = Date.now();
+
+    const isActive = (shipment: CopilotRow) =>
+      shipment.status === "booked" &&
+      shipment.trackingStatus !== "delivered";
+
+    const active = rows.filter(isActive);
+
+    const needsAttention = (shipment: CopilotRow) =>
+      isActive(shipment) &&
+      (
+        new Date(shipment.deadline).getTime() <= now ||
+        !shipment.assessmentFresh ||
+        !shipment.locationFresh ||
+        (
+          shipment.assessmentFresh &&
+          shipment.riskStatus !== "On Track"
+        )
+      );
+
+    const attention = rows.filter(needsAttention);
+
+    const money = (value: number) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+      }).format(value);
+
+    const reasons = (shipment: CopilotRow): string[] => {
+      if (shipment.trackingStatus === "delivered") {
+        return ["Delivery has been recorded."];
+      }
+
+      if (shipment.status !== "booked") {
+        return [
+          `Shipment status is ${shipment.status}. ` +
+          "An active booking is required for operational ETA assessment.",
+        ];
+      }
+
+      const messages: string[] = [];
+
+      if (new Date(shipment.deadline).getTime() <= now) {
+        messages.push(
+          "The deadline has passed and delivery has not been recorded."
+        );
+      }
+
+      if (!shipment.assessmentFresh) {
+        messages.push(
+          "The SLA assessment is missing or older than two minutes. " +
+          "A current risk conclusion is unavailable."
+        );
+      } else {
+        messages.push(
+          `Latest SLA assessment: ${shipment.riskStatus ?? "Unknown"}.`
+        );
+
+        if (shipment.estimatedArrival) {
+          const slack = Math.round(
+            (
+              new Date(shipment.deadline).getTime() -
+              new Date(shipment.estimatedArrival).getTime()
+            ) / 60_000
+          );
+
+          messages.push(
+            slack >= 0
+              ? `Estimated arrival has approximately ${slack} minutes of deadline buffer.`
+              : `Estimated arrival misses the deadline by approximately ${Math.abs(slack)} minutes.`
+          );
+        }
+      }
+
+      if (!shipment.locationFresh) {
+        messages.push(
+          "The latest location is missing or older than two minutes. " +
+          "Record a fresh carrier location."
+        );
+      }
+
+      if (shipment.delayExposureInr !== null) {
+        messages.push(
+          `Predicted delay exposure: ${money(shipment.delayExposureInr)}.`
+        );
+      }
+
+      return messages;
+    };
+
+    let selected = rows;
+    let answer: string;
+
+    if (intent === "financial") {
+      const known = active.filter(
+        (shipment) => shipment.delayExposureInr !== null
+      );
+
+      const total = known.reduce(
+        (sum, shipment) => sum + (shipment.delayExposureInr ?? 0),
+        0
+      );
+
+      answer =
+        `Known predicted delay exposure is ${money(total)} across ` +
+        `${known.length} active shipments with fresh assessments. ` +
+        `${active.length - known.length} active shipments have unknown ` +
+        "exposure. This estimate uses predicted late hours multiplied " +
+        "by the configured hourly delay cost; it is not an invoice.";
+
+      selected = [...active].sort(
+        (a, b) =>
+          (b.delayExposureInr ?? -1) -
+          (a.delayExposureInr ?? -1)
+      );
+    } else if (intent === "recovery") {
+      selected = active;
+
+      const count = active.reduce(
+        (sum, shipment) => sum + shipment.savedProposalCount,
+        0
+      );
+
+      answer =
+        `There are ${count} unexpired saved pending recovery proposals ` +
+        "for the current bookings in this scope. Saved proposals still " +
+        "need eligibility and position checks during approval. " +
+        "An assigned Dispatcher can generate current alternatives " +
+        "in the Recovery workspace.";
+    } else if (intent === "attention") {
+      selected = attention;
+
+      answer =
+        `${attention.length} of ${active.length} active shipments need ` +
+        "attention because of deadline risk, a passed deadline, " +
+        "a stale assessment, or a stale location.";
+    } else if (intent === "explain") {
+      answer = shipmentId
+        ? "The supporting shipment evidence is shown below. " +
+          "The records explain the calculated risk, but do not prove " +
+          "a real-world cause such as traffic or vehicle failure."
+        : "Select a shipment with Inspect for a focused explanation. " +
+          "Below are the current attention cases.";
+
+      selected = shipmentId ? rows : attention;
+    } else {
+      const delivered = rows.filter(
+        (shipment) => shipment.trackingStatus === "delivered"
+      ).length;
+
+      answer =
+        `This scope contains ${rows.length} shipments: ` +
+        `${active.length} active bookings and ${delivered} delivered. ` +
+        `${attention.length} active shipments need attention.`;
+
+      selected = [
+        ...attention,
+        ...rows.filter((shipment) => !needsAttention(shipment)),
+      ];
+    }
+
+    res.json({
+      answer,
+      generatedAt: new Date().toISOString(),
+      scope: shipmentId
+        ? "Selected authorized shipment."
+        : limited
+          ? "Latest 200 authorized shipments; older records are excluded."
+          : `${rows.length} authorized shipments.`,
+      shipments: selected.slice(0, 10).map((shipment) => ({
+        id: shipment.id,
+        trackingCode: shipment.trackingCode,
+        route: `${shipment.originCity} → ${shipment.destinationCity}`,
+        trackingStatus: shipment.trackingStatus,
+        carrierName: shipment.carrierName,
+        evaluatedAt: shipment.evaluatedAt,
+        estimatedArrival:
+          shipment.assessmentFresh && isActive(shipment)
+            ? shipment.estimatedArrival
+            : null,
+        deadline: shipment.deadline,
+        reasons: reasons(shipment),
+        recoveryLabel: shipment.recoveryLabel,
+        savedProposalCount: shipment.savedProposalCount,
+      })),
+    });
+  } catch (error) {
+    console.error("Workspace copilot:", error);
+
+    res.status(503).json({
+      message: "Copilot data is temporarily unavailable.",
+    });
+  }
+});
+
 export default router;
