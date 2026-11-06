@@ -22,3 +22,10 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+
+# Python service virtual environments and generated files
+python-service/.venv/
+python-service/venv/
+python-service/__pycache__/
+python-service/**/*.py[cod]
