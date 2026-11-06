@@ -15,6 +15,13 @@ import {
 } from "../services/shipment-eta.service.js";
 import { predictETA } from "../services/eta.service.js";
 
+
+import { rateLimit } from "express-rate-limit";
+
+import {
+  generateGroqCopilotReply,
+  GroqCopilotError,
+} from "../services/groq-copilot.service.js";
 const router = Router();
 
 router.use(requireAuth);
@@ -625,6 +632,15 @@ router.post(
 const copilotSchema = z.object({
   question: z.string().trim().min(3).max(500),
   shipmentId: z.uuid().optional(),
+
+  mode: z.enum(["rules", "chat"]).default("rules"),
+
+  history: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string().trim().min(1).max(800),
+    }).strict()
+  ).max(8).default([]),
 }).strict();
 
 interface CopilotRow {
@@ -673,18 +689,7 @@ router.post("/copilot", async (req: AuthRequest, res) => {
               ? "summary"
               : "help";
 
-  if (intent === "help") {
-    res.json({
-      answer:
-        "I support shipment summaries, attention checks, risk " +
-        "explanations, financial exposure, and saved recovery " +
-        "proposals. Choose one of the suggested questions.",
-      generatedAt: new Date().toISOString(),
-      scope: "No shipment data requested.",
-      shipments: [],
-    });
-    return;
-  }
+  
 
   try {
     const result = await db.query<CopilotRow>(
@@ -961,31 +966,92 @@ router.post("/copilot", async (req: AuthRequest, res) => {
       ];
     }
 
-    res.json({
-      answer,
-      generatedAt: new Date().toISOString(),
-      scope: shipmentId
-        ? "Selected authorized shipment."
-        : limited
-          ? "Latest 200 authorized shipments; older records are excluded."
-          : `${rows.length} authorized shipments.`,
-      shipments: selected.slice(0, 10).map((shipment) => ({
-        id: shipment.id,
-        trackingCode: shipment.trackingCode,
-        route: `${shipment.originCity} → ${shipment.destinationCity}`,
-        trackingStatus: shipment.trackingStatus,
-        carrierName: shipment.carrierName,
-        evaluatedAt: shipment.evaluatedAt,
-        estimatedArrival:
-          shipment.assessmentFresh && isActive(shipment)
-            ? shipment.estimatedArrival
-            : null,
-        deadline: shipment.deadline,
-        reasons: reasons(shipment),
-        recoveryLabel: shipment.recoveryLabel,
-        savedProposalCount: shipment.savedProposalCount,
-      })),
-    });
+    const generatedAt = new Date().toISOString();
+
+const scope = shipmentId
+  ? "Selected authorized shipment."
+  : limited
+    ? "Latest 200 authorized shipments; older records are excluded."
+    : `${rows.length} authorized shipments.`;
+
+const supportingShipments = selected.slice(0, 10).map(
+  (shipment) => ({
+    id: shipment.id,
+    trackingCode: shipment.trackingCode,
+    route: `${shipment.originCity} → ${shipment.destinationCity}`,
+    trackingStatus: shipment.trackingStatus,
+    carrierName: shipment.carrierName,
+    evaluatedAt: shipment.evaluatedAt,
+
+    estimatedArrival:
+      shipment.assessmentFresh && isActive(shipment)
+        ? shipment.estimatedArrival
+        : null,
+
+    deadline: shipment.deadline,
+    reasons: reasons(shipment),
+    recoveryLabel: shipment.recoveryLabel,
+    savedProposalCount: shipment.savedProposalCount,
+  })
+);
+
+let aiSummary: string | null = null;
+let aiUnavailable: string | null = null;
+
+try {
+  // Send a bounded snapshot derived from the authorized query.
+  // Do not send credentials, account emails or shipment addresses.
+  const aiShipments = supportingShipments.map((shipment) => ({
+    trackingCode: shipment.trackingCode,
+    route: shipment.route.slice(0, 160),
+    trackingStatus: shipment.trackingStatus,
+    carrierName: shipment.carrierName?.slice(0, 120) ?? null,
+    evaluatedAt: shipment.evaluatedAt,
+    estimatedArrival: shipment.estimatedArrival,
+    deadline: shipment.deadline,
+    reasons: shipment.reasons,
+    recoveryLabel: shipment.recoveryLabel?.slice(0, 160) ?? null,
+    savedProposalCount: shipment.savedProposalCount,
+  }));
+
+  const reply = await generateGroqCopilotReply({
+  question,
+  history: parsed.data.history,
+
+  snapshot: {
+    checkedAt: generatedAt,
+    scope,
+    requestedView: intent,
+    factualSummary: answer,
+    matchingShipmentCount: selected.length,
+    supportingCardCount: aiShipments.length,
+    shipments: aiShipments,
+  },
+});
+
+aiSummary = reply.answer;
+
+if (reply.truncated) {
+  aiUnavailable =
+    "The AI explanation was shortened. Select one shipment " +
+    "or ask a more specific question for a complete answer.";
+}
+} catch (error) {
+  // Preserve the existing facts and cards if AI is unavailable.
+  aiUnavailable =
+    error instanceof Error
+      ? error.message
+      : "AI summary is temporarily unavailable.";
+}
+
+res.json({
+  answer,
+  aiSummary,
+  aiUnavailable,
+  generatedAt,
+  scope,
+  shipments: supportingShipments,
+});
   } catch (error) {
     console.error("Workspace copilot:", error);
 

@@ -2363,3 +2363,60 @@
     flex-direction: column;
   }
 }
+
+/* ======================================
+   COPILOT AI EXPLANATIONS AND CONVERSATION
+   ====================================== */
+
+.copilot-facts {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--soft-surface);
+}
+
+.copilot-facts p {
+  margin-bottom: 0;
+  line-height: 1.7;
+}
+
+.copilot-ai-summary {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--powder-blue);
+  border-left: 4px solid var(--deep-teal);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.copilot-ai-summary > strong {
+  color: var(--deep-teal);
+}
+
+.copilot-ai-text,
+.copilot-history-turn p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+
+.copilot-history {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.copilot-history summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--deep-teal);
+}
+
+.copilot-history-turn {
+  margin-top: 16px;
+}
+
+.copilot-form {
+  margin-top: 16px;
+}

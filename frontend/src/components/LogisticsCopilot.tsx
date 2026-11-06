@@ -11,6 +11,11 @@ interface Props {
   shipmentLabel?: string;
 }
 
+interface CopilotTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface CopilotShipment {
   id: string;
   trackingCode: string;
@@ -30,6 +35,8 @@ interface CopilotResponse {
   generatedAt: string;
   scope: string;
   shipments: CopilotShipment[];
+  aiSummary: string | null;
+aiUnavailable: string | null;
 }
 
 const suggestions = [
@@ -51,6 +58,8 @@ export default function LogisticsCopilot({
   const [result, setResult] = useState<CopilotResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [conversation, setConversation] =
+  useState<CopilotTurn[]>([]);
 
   const requestRef = useRef<AbortController | null>(null);
 
@@ -83,15 +92,34 @@ export default function LogisticsCopilot({
           method: "POST",
           signal: controller.signal,
           body: JSON.stringify({
-            question: value,
-            shipmentId,
-          }),
+  question: value,
+  shipmentId,
+
+  history: conversation.slice(-6).map((turn) => ({
+    role: turn.role,
+    content: turn.content.slice(0, 800),
+  })),
+}),
         }
       );
 
       if (!controller.signal.aborted) {
-        setResult(response);
-      }
+  setResult(response);
+
+  const userTurn: CopilotTurn = {
+    role: "user",
+    content: value,
+  };
+
+  const assistantTurn: CopilotTurn = {
+    role: "assistant",
+    content: response.aiSummary ?? response.answer,
+  };
+
+  setConversation((previous) =>
+    [...previous, userTurn, assistantTurn].slice(-8)
+  );
+}
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(
@@ -134,9 +162,10 @@ export default function LogisticsCopilot({
       </p>
 
       <p className="tracking-muted">
-        Database answers using defined logistics rules.
-        Answers reflect the records available when you ask.
-      </p>
+  Shipment facts come from your authorized records.
+  Groq explains the displayed shipments and supports follow-up
+  questions. Check important details against the supporting cards.
+</p>
 
       <div className="copilot-suggestions">
         {suggestions.map((suggestion) => (
@@ -151,6 +180,38 @@ export default function LogisticsCopilot({
           </button>
         ))}
       </div>
+
+
+       {conversation.length > 2 && (
+  <details className="copilot-history">
+    <summary>Previous questions and answers</summary>
+
+    {conversation.slice(0, -2).map((turn, index) => (
+      <div key={index} className="copilot-history-turn">
+        <strong>
+          {turn.role === "user" ? "You" : "Copilot"}
+        </strong>
+        <p>{turn.content}</p>
+      </div>
+    ))}
+  </details>
+)}
+
+{conversation.length > 0 && (
+  <button
+    type="button"
+    className="secondary-button"
+    disabled={busy}
+    onClick={() => {
+      setConversation([]);
+      setResult(null);
+      setQuestion("");
+      setError("");
+    }}
+  >
+    Clear conversation
+  </button>
+)}
 
       <form className="copilot-form" onSubmit={submit}>
         <label htmlFor="copilot-question">
@@ -186,7 +247,27 @@ export default function LogisticsCopilot({
 
       {result && (
         <div className="copilot-response" aria-live="polite">
-          <p className="copilot-answer">{result.answer}</p>
+          <div className="copilot-facts">
+  <strong>Shipment facts</strong>
+  <p>{result.answer}</p>
+</div>
+
+{result.aiSummary && (
+  <div className="copilot-ai-summary">
+    <strong>AI explanation · Groq</strong>
+
+    <p className="copilot-ai-text">
+      {result.aiSummary}
+    </p>
+  </div>
+)}
+
+{result.aiUnavailable && (
+  <p className="form-alert" role="status">
+    {result.aiUnavailable}
+    {" "}The shipment facts and supporting cards are still shown.
+  </p>
+)}
 
           <p className="tracking-muted">
             {result.scope} Checked {date(result.generatedAt)}.
