@@ -10,8 +10,10 @@ interface AssignedShipment {
   destinationCity: string;
   deadline: string;
   riskStatus: string | null;
+  status: string;
+  trackingStatus: string;
+  locationRecordedAt: string | null;
 }
-
 interface Proposal {
   id: string;
   carrierName: string;
@@ -38,14 +40,23 @@ export default function DispatcherRecovery() {
   const [now, setNow] = useState(Date.now());
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const data = await apiRequest<{
-      shipments: AssignedShipment[];
-    }>("/recovery/assigned-shipments", { signal });
+  const data = await apiRequest<{
+    shipments: AssignedShipment[];
+  }>("/workspace", {
+    signal,
+    cache: "no-store",
+  });
 
-    if (!signal?.aborted) {
-      setShipments(data.shipments);
-    }
-  }, []);
+  if (!signal?.aborted) {
+    setShipments(
+      data.shipments.filter(
+        (shipment) =>
+          shipment.status === "booked" &&
+          shipment.trackingStatus !== "delivered"
+      )
+    );
+  }
+}, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -131,6 +142,18 @@ export default function DispatcherRecovery() {
     (shipment) => shipment.id === selectedId
   );
 
+  const beforePickupShipments = shipments.filter(
+  (shipment) =>
+    shipment.trackingStatus === "booked" &&
+    shipment.locationRecordedAt === null
+);
+
+const transitShipments = shipments.filter(
+  (shipment) =>
+    shipment.trackingStatus === "picked_up" ||
+    shipment.trackingStatus === "in_transit"
+);
+
   return (
     <main className="shipments-container">
       <Link to="/dashboard/dispatcher">
@@ -166,7 +189,17 @@ export default function DispatcherRecovery() {
         <p>No active assigned shipments.</p>
       )}
 
-      {shipments.map((shipment) => (
+      <h2>Before-pickup recovery</h2>
+
+<p className="tracking-muted">
+  Carrier replacements before pickup or recorded location movement.
+</p>
+
+{beforePickupShipments.length === 0 && (
+  <p>No assigned shipments currently qualify for before-pickup recovery.</p>
+)}
+
+{beforePickupShipments.map((shipment) => (
         <section className="tracking-panel" key={shipment.id}>
           <h3>{shipment.trackingCode}</h3>
 
@@ -190,12 +223,12 @@ export default function DispatcherRecovery() {
           >
             {busy && selectedId === shipment.id
               ? "Processing..."
-              : "Generate recovery options"}
+              : "Find before-pickup alternatives"}
           </button>
         </section>
       ))}
 
-      <TransitRecovery shipments={shipments} />
+      <TransitRecovery shipments={transitShipments} />
 
       {selected && proposals.length > 0 && (
         <section className="tracking-panel">

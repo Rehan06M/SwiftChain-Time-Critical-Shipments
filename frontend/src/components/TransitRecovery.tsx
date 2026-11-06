@@ -105,6 +105,13 @@ export default function TransitRecovery({
         A location newer than two minutes is required.
       </p>
 
+      {shipments.length === 0 && (
+  <p>
+    No assigned shipments are currently Picked Up or In Transit.
+    Out for Delivery and Delivered shipments do not qualify.
+  </p>
+)}
+
       <select
         aria-label="Shipment for transit recovery"
         value={selected}
