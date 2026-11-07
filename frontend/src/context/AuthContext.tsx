@@ -19,6 +19,9 @@ interface RegisterData {
   email: string;
   organizationName: string;
   password: string;
+  role: "shipper" | "dispatcher" | "carrier";
+  carrierId?: string;
+  inviteCode?: string;
 }
 
 interface AuthContextType {

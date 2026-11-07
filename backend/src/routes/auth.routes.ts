@@ -1,7 +1,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { Router } from "express";
 import type { Response } from "express";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -23,6 +23,9 @@ const registerSchema = z.object({
   email: z.email().trim().toLowerCase(),
   organizationName: z.string().trim().min(2).max(160),
   password: z.string().min(12).max(72),
+  role: z.enum(["shipper", "dispatcher", "carrier"]).default("shipper"),
+  carrierId: z.uuid().optional(),
+  inviteCode: z.string().max(128).optional(),
 });
 
 const loginSchema = z.object({
@@ -102,74 +105,81 @@ function publicUser(user: Record<string, unknown>) {
   };
 }
 
-// PUBLIC REGISTRATION
+// Public carrier catalogue for invite-controlled registration.
+router.get("/registration-carriers", async (_req, res) => {
+  try {
+    const result = await db.query("SELECT id, name FROM public.carriers WHERE is_active = TRUE ORDER BY name");
+    res.json({ carriers: result.rows });
+  } catch (error) {
+    console.error("Registration carriers:", error);
+    res.status(503).json({ message: "Carrier companies unavailable" });
+  }
+});
+
+// Ordinary signup is shipper-only unless the user presents a private invitation.
 router.post("/register", authLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
-
   if (!parsed.success) {
-    res.status(400).json({
-      message: "Please check your registration details.",
-      errors: parsed.error.flatten(),
-    });
+    res.status(400).json({ message: "Please check your registration details.", errors: parsed.error.flatten() });
     return;
   }
-
-  const {
-    fullName,
-    email,
-    organizationName,
-    password,
-  } = parsed.data;
-
-  try {
-    const hash = await bcrypt.hash(password, 12);
-
-    const result = await db.query(
-      `
-        INSERT INTO users (
-          id, full_name, email,
-          organization_name, password_hash, role
-        )
-        VALUES ($1, $2, $3, $4, $5, 'shipper')
-        RETURNING
-          id, full_name, email,
-          organization_name, role
-      `,
-      [
-        randomUUID(),
-        fullName,
-        email,
-        organizationName,
-        hash,
-      ]
-    );
-
-    const user = result.rows[0];
-
-    await issueSession(res, user.id, user.role);
-
-    res.status(201).json({
-      message: "Account created successfully",
-      user: publicUser(user),
-    });
-  } catch (error: unknown) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "23505"
-    ) {
-      res.status(409).json({
-        message: "An account with this email already exists",
-      });
+  const { fullName, email, organizationName, password, role, carrierId, inviteCode } = parsed.data;
+  if (role !== "shipper") {
+    const secret = process.env.ROLE_SIGNUP_INVITE_CODE;
+    if (!secret || secret.length < 16 || !inviteCode) {
+      res.status(403).json({ message: "A valid role invitation is required" });
       return;
     }
-
+    const digest = (text: string) => createHash("sha256").update(text).digest();
+    if (!timingSafeEqual(digest(secret), digest(inviteCode))) {
+      res.status(403).json({ message: "Invalid role invitation" });
+      return;
+    }
+  }
+  if (role === "carrier" && !carrierId) {
+    res.status(400).json({ message: "Select a carrier company" });
+    return;
+  }
+  if (role !== "carrier" && carrierId) {
+    res.status(400).json({ message: "Only carrier accounts can select a carrier company" });
+    return;
+  }
+  let client;
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    client = await db.connect();
+    await client.query("BEGIN");
+    if (role === "carrier") {
+      const company = await client.query("SELECT 1 FROM public.carriers WHERE id = $1 AND is_active = TRUE", [carrierId]);
+      if (!company.rows[0]) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ message: "Selected carrier company not found" });
+        return;
+      }
+    }
+    const result = await client.query(
+      `INSERT INTO public.users (id, full_name, email, organization_name, password_hash, role)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id, full_name, email, organization_name, role`,
+      [randomUUID(), fullName, email, organizationName, hash, role]
+    );
+    const user = result.rows[0];
+    if (role === "carrier") {
+      await client.query("INSERT INTO public.carrier_accounts (user_id, carrier_id) VALUES ($1,$2)", [user.id, carrierId]);
+    }
+    await client.query("COMMIT");
+    await issueSession(res, user.id, user.role);
+    res.status(201).json({ message: "Account created successfully", user: publicUser(user) });
+  } catch (error: unknown) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+      res.status(409).json({ message: "An account with this email already exists" });
+      return;
+    }
     console.error("Registration error:", error);
-
-    res.status(500).json({
-      message: "Unable to create account",
-    });
+    res.status(500).json({ message: "Unable to create account" });
+  } finally {
+    client?.release();
   }
 });
 

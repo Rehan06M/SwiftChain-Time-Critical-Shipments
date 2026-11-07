@@ -29,3 +29,4 @@ python-service/.venv/
 python-service/venv/
 python-service/__pycache__/
 python-service/**/*.py[cod]
+PROJECT_ANALYSIS.md

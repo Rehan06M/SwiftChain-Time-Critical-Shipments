@@ -1,7 +1,7 @@
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Truck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Truck, Package, Route } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -13,6 +13,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<"shipper" | "dispatcher" | "carrier">("shipper");
   const [selectedDemoRole, setSelectedDemoRole] = useState<
     "dispatcher" | "carrier" | null
   >(null);
@@ -27,15 +28,11 @@ export default function Login() {
 
   function handleSelectDemo(role: "dispatcher" | "carrier") {
     if (submitting) return;
+    setSelectedRole(role);
     setSelectedDemoRole(role);
     setError("");
-    if (role === "dispatcher") {
-      setEmail("dispatcher@swiftchain.test");
-      setPassword("12345678987654321");
-    } else {
-      setEmail("carrier@swiftchain.test");
-      setPassword("12345678987654321");
-    }
+    setEmail(role === "dispatcher" ? "dispatcher@swiftchain.test" : "carrier@swiftchain.test");
+    setPassword(""); // Never embed an account password in the browser bundle.
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -94,6 +91,21 @@ export default function Login() {
             Access your logistics workspace.
           </p>
 
+          <div className="auth-role-picker" role="group" aria-label="Sign-in workspace">
+            {([
+              { id: "shipper", label: "Shipper", Icon: Package },
+              { id: "dispatcher", label: "Dispatcher", Icon: Route },
+              { id: "carrier", label: "Carrier", Icon: Truck },
+            ] as const).map(({ id, label, Icon }) => (
+              <button type="button" key={id} aria-pressed={selectedRole === id}
+                className={`auth-role-option ${selectedRole === id ? "is-selected" : ""}`}
+                onClick={() => { setSelectedRole(id); setSelectedDemoRole(null); }}>
+                <Icon size={19}/><span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="auth-role-hint">Your account's verified role determines the dashboard after login.</p>
+
           <form onSubmit={handleSubmit}>
             {error && (
               <div className="form-alert" role="alert">{error}</div>
@@ -107,18 +119,7 @@ export default function Login() {
                 type="email"
                 placeholder="you@company.com"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (
-                    selectedDemoRole &&
-                    e.target.value !==
-                      (selectedDemoRole === "dispatcher"
-                        ? "dispatcher@swiftchain.test"
-                        : "carrier@swiftchain.test")
-                  ) {
-                    setSelectedDemoRole(null);
-                  }
-                }}
+                onChange={(e) => { setEmail(e.target.value); setSelectedDemoRole(null); }}
                 autoComplete="email"
                 required
               />
@@ -132,15 +133,7 @@ export default function Login() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (
-                    selectedDemoRole &&
-                    e.target.value !== "12345678987654321"
-                  ) {
-                    setSelectedDemoRole(null);
-                  }
-                }}
+                onChange={(e) => { setPassword(e.target.value); setSelectedDemoRole(null); }}
                 autoComplete="current-password"
                 required
               />
@@ -184,6 +177,7 @@ export default function Login() {
                   <span className="demo-email-tag">carrier@swiftchain.test</span>
                 </button>
               </div>
+              <p className="auth-demo-note">Choose an account, then enter its locally configured password.</p>
             </div>
 
             <button

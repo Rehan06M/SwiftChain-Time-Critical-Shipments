@@ -1,5 +1,5 @@
 import GoogleSignInButton from "../components/GoogleSignInButton";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -7,14 +7,21 @@ import {
   LockKeyhole,
   Mail,
   Truck,
-  UserRound,
+  UserRound, Package, Route, KeyRound,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { apiRequest } from "../lib/api";
+type Role = "shipper" | "dispatcher" | "carrier";
+type CarrierChoice = { id: string; name: string };
 
 export default function Register() {
   const { user, loading, register } = useAuth();
   const navigate = useNavigate();
 
+  const [role, setRole] = useState<Role>("shipper");
+  const [inviteCode, setInviteCode] = useState("");
+  const [carrierId, setCarrierId] = useState("");
+  const [carriers, setCarriers] = useState<CarrierChoice[]>([]);
   const [fullName, setFullName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,6 +29,15 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (role !== "carrier") return;
+    let active = true;
+    void apiRequest<{ carriers: CarrierChoice[] }>("/auth/registration-carriers")
+      .then(data => { if (active) setCarriers(data.carriers); })
+      .catch(() => { if (active) setError("Could not load carrier companies. Check backend and seed data."); });
+    return () => { active = false; };
+  }, [role]);
 
   if (loading) {
     return <div className="loading-screen">Loading...</div>;
@@ -45,6 +61,8 @@ export default function Register() {
       return;
     }
 
+    if (role === "carrier" && !carrierId) { setError("Select a carrier company"); return; }
+    if (role !== "shipper" && !inviteCode) { setError("Enter your role invitation code"); return; }
     setSubmitting(true);
 
     try {
@@ -53,6 +71,9 @@ export default function Register() {
         organizationName,
         email,
         password,
+        role,
+        ...(role === "carrier" ? { carrierId } : {}),
+        ...(role !== "shipper" ? { inviteCode } : {}),
       });
 
       navigate("/dashboard", { replace: true });
@@ -110,6 +131,21 @@ export default function Register() {
             Set up your business logistics workspace.
           </p>
 
+          <div className="auth-role-picker" role="group" aria-label="Select registration role">
+            {([
+              { id: "shipper", label: "Shipper", Icon: Package },
+              { id: "dispatcher", label: "Dispatcher", Icon: Route },
+              { id: "carrier", label: "Carrier", Icon: Truck },
+            ] as const).map(({ id, label, Icon }) => (
+              <button type="button" key={id} aria-pressed={role === id}
+                className={`auth-role-option ${role === id ? "is-selected" : ""}`}
+                onClick={() => { setRole(id); setCarrierId(""); setError(""); }}>
+                <Icon size={19}/><span>{label}</span>
+              </button>
+            ))}
+          </div>
+          {role !== "shipper" && <p className="auth-role-hint">Dispatcher and Carrier registration needs an administrator invitation code.</p>}
+
           <form onSubmit={handleSubmit}>
             {error && (
               <div className="form-alert" role="alert">
@@ -150,6 +186,14 @@ export default function Register() {
                 required
               />
             </div>
+
+            {role === "carrier" && <>
+              <label htmlFor="carrierId">Carrier company</label>
+              <div className="auth-select-wrap"><select id="carrierId" value={carrierId} onChange={e => setCarrierId(e.target.value)} required>
+                <option value="">Choose an existing carrier</option>
+                {carriers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select></div>
+            </>}
 
             <label htmlFor="email">Work email</label>
             <div className="input-wrap">
@@ -199,17 +243,24 @@ export default function Register() {
               />
             </div>
 
+            {role !== "shipper" && <>
+              <label htmlFor="inviteCode">Role invitation code</label>
+              <div className="input-wrap"><KeyRound size={18}/><input id="inviteCode" type="password"
+                placeholder="Code from the administrator" value={inviteCode}
+                onChange={e => setInviteCode(e.target.value)} autoComplete="off" maxLength={128} required /></div>
+            </>}
+
             <button
               className="primary-button"
               type="submit"
               disabled={submitting}
             >
-              {submitting ? "Creating account..." : "Create account"}
+              {submitting ? "Creating account..." : `Create ${role} account`}
               <ArrowRight size={18} />
             </button>
           </form>
 
-          <GoogleSignInButton onError={setError} />
+          {role === "shipper" && <GoogleSignInButton onError={setError} />}
 
           <p className="auth-switch">
             Already have an account?{" "}
