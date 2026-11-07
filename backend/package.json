@@ -11,7 +11,8 @@
     "test:urgency": "tsx src/services/urgency.test.ts",
     "test:carriers": "tsx src/services/carrier-matching.test.ts",
     "test:pricing": "tsx src/services/pricing.test.ts",
-    "dev:sla": "tsx watch src/workers/sla.worker.ts"
+    "dev:sla": "tsx watch src/workers/sla.worker.ts",
+    "seed:auth": "tsx src/scripts/seed.ts"
   },
   "keywords": [],
   "author": "",

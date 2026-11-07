@@ -140,10 +140,18 @@ export default function ShipmentTracking({
     }
   }, [shipmentId]);
 
+
   useEffect(() => {
-    void load();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) {
+        void load();
+      }
+    });
 
     const socket = io(SOCKET_URL, {
+
       withCredentials: true,
       autoConnect: false,
     });
@@ -193,11 +201,17 @@ export default function ShipmentTracking({
 
     socket.connect();
 
+
+    const requestVersionRef = requestVersion;
+    const simulationVersionRef = simulationVersion;
+
     return () => {
-      ++requestVersion.current;
-      ++simulationVersion.current;
+      active = false;
+      ++requestVersionRef.current;
+      ++simulationVersionRef.current;
       socket.disconnect();
     };
+
   }, [shipmentId, load]);
 
   const origin = useMemo(
@@ -218,7 +232,7 @@ export default function ShipmentTracking({
           data.latestLocation.latitude,
         ]
         : null,
-    [data?.latestLocation]
+    [data]
   );
 
   const currentIndex = milestones.findIndex(
@@ -234,78 +248,78 @@ export default function ShipmentTracking({
     data?.shipment.status === "booked" &&
     data.trackingStatus !== "delivered";
 
-    function remainingDemoPath(
-  points: MapPoint[],
-  current: MapPoint
-): MapPoint[] {
-  let bestIndex = 0;
-  let bestDistance = Infinity;
+  function remainingDemoPath(
+    points: MapPoint[],
+    current: MapPoint
+  ): MapPoint[] {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
 
-  for (let index = 0; index < points.length - 1; index++) {
-    const start = points[index]!;
-    const end = points[index + 1]!;
-    const scale = Math.cos(current[1] * Math.PI / 180);
-
-    const dx = (end[0] - start[0]) * scale;
-    const dy = end[1] - start[1];
-    const px = (current[0] - start[0]) * scale;
-    const py = current[1] - start[1];
-
-    const length = dx * dx + dy * dy;
-    const fraction = length > 0
-      ? Math.max(0, Math.min(1, (px * dx + py * dy) / length))
-      : 0;
-
-    const distance =
-      (px - dx * fraction) ** 2 +
-      (py - dy * fraction) ** 2;
-
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = index;
-    }
-  }
-
-  return [current, ...points.slice(bestIndex + 1)];
-}
-
-function demoPointAt(
-  points: MapPoint[],
-  progress: number
-): MapPoint {
-  const lengths = points.slice(1).map((point, index) => {
-    const start = points[index]!;
-    const scale = Math.cos(
-      ((start[1] + point[1]) / 2) * Math.PI / 180
-    );
-
-    return Math.hypot(
-      (point[0] - start[0]) * scale,
-      point[1] - start[1]
-    );
-  });
-
-  let remaining = lengths.reduce((a, b) => a + b, 0) * progress;
-
-  for (let index = 0; index < lengths.length; index++) {
-    const length = lengths[index]!;
-
-    if (remaining <= length && length > 0) {
-      const fraction = remaining / length;
+    for (let index = 0; index < points.length - 1; index++) {
       const start = points[index]!;
       const end = points[index + 1]!;
+      const scale = Math.cos(current[1] * Math.PI / 180);
 
-      return [
-        start[0] + (end[0] - start[0]) * fraction,
-        start[1] + (end[1] - start[1]) * fraction,
-      ];
+      const dx = (end[0] - start[0]) * scale;
+      const dy = end[1] - start[1];
+      const px = (current[0] - start[0]) * scale;
+      const py = current[1] - start[1];
+
+      const length = dx * dx + dy * dy;
+      const fraction = length > 0
+        ? Math.max(0, Math.min(1, (px * dx + py * dy) / length))
+        : 0;
+
+      const distance =
+        (px - dx * fraction) ** 2 +
+        (py - dy * fraction) ** 2;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
     }
 
-    remaining -= length;
+    return [current, ...points.slice(bestIndex + 1)];
   }
 
-  return points[points.length - 1]!;
-}
+  function demoPointAt(
+    points: MapPoint[],
+    progress: number
+  ): MapPoint {
+    const lengths = points.slice(1).map((point, index) => {
+      const start = points[index]!;
+      const scale = Math.cos(
+        ((start[1] + point[1]) / 2) * Math.PI / 180
+      );
+
+      return Math.hypot(
+        (point[0] - start[0]) * scale,
+        point[1] - start[1]
+      );
+    });
+
+    let remaining = lengths.reduce((a, b) => a + b, 0) * progress;
+
+    for (let index = 0; index < lengths.length; index++) {
+      const length = lengths[index]!;
+
+      if (remaining <= length && length > 0) {
+        const fraction = remaining / length;
+        const start = points[index]!;
+        const end = points[index + 1]!;
+
+        return [
+          start[0] + (end[0] - start[0]) * fraction,
+          start[1] + (end[1] - start[1]) * fraction,
+        ];
+      }
+
+      remaining -= length;
+    }
+
+    return points[points.length - 1]!;
+  }
   async function save(update: TrackingUpdate) {
     setBusy(true);
     setError("");
@@ -332,82 +346,82 @@ function demoPointAt(
   }
 
   async function startSimulation() {
-  if (!origin || !destination || !data || !canUpdate || running) {
-    setError("Enter valid route coordinates.");
-    return;
-  }
-
-  const version = ++simulationVersion.current;
-  const routeRevision = data.shipment.routeRevision;
-  const approvedRoute = data.shipment.recoveryRoute;
-
-  setRunning(true);
-  setError("");
-
-  try {
-    // Only initialize coordinates before movement.
-    if (!data.latestLocation && !approvedRoute) {
-      await saveTrackingRoute(shipmentId, {
-        originLatitude: origin[1],
-        originLongitude: origin[0],
-        destinationLatitude: destination[1],
-        destinationLongitude: destination[0],
-      });
+    if (!origin || !destination || !data || !canUpdate || running) {
+      setError("Enter valid route coordinates.");
+      return;
     }
 
-    if (version !== simulationVersion.current) return;
+    const version = ++simulationVersion.current;
+    const routeRevision = data.shipment.routeRevision;
+    const approvedRoute = data.shipment.recoveryRoute;
 
-    const start: MapPoint = data.latestLocation
-      ? [
+    setRunning(true);
+    setError("");
+
+    try {
+      // Only initialize coordinates before movement.
+      if (!data.latestLocation && !approvedRoute) {
+        await saveTrackingRoute(shipmentId, {
+          originLatitude: origin[1],
+          originLongitude: origin[0],
+          destinationLatitude: destination[1],
+          destinationLongitude: destination[0],
+        });
+      }
+
+      if (version !== simulationVersion.current) return;
+
+      const start: MapPoint = data.latestLocation
+        ? [
           data.latestLocation.longitude,
           data.latestLocation.latitude,
         ]
-      : origin;
+        : origin;
 
-    const points: MapPoint[] = approvedRoute
-      ? remainingDemoPath(approvedRoute.points, start)
-      : [start, destination];
+      const points: MapPoint[] = approvedRoute
+        ? remainingDemoPath(approvedRoute.points, start)
+        : [start, destination];
 
-    for (let step = 0; step <= 20; step++) {
-      if (version !== simulationVersion.current) break;
+      for (let step = 0; step <= 20; step++) {
+        if (version !== simulationVersion.current) break;
 
-      const point = demoPointAt(points, step / 20);
+        const point = demoPointAt(points, step / 20);
 
-      await apiRequest(`/tracking/${shipmentId}/events`, {
-        method: "POST",
-        body: JSON.stringify({
-          eventType: "location",
-          longitude: point[0],
-          latitude: point[1],
-          routeRevision,
-          message: approvedRoute
-            ? `Recovery simulation: ${approvedRoute.label}`
-            : `Demo journey: ${step * 5}%`,
-        }),
-      });
+        await apiRequest(`/tracking/${shipmentId}/events`, {
+          method: "POST",
+          body: JSON.stringify({
+            eventType: "location",
+            longitude: point[0],
+            latitude: point[1],
+            routeRevision,
+            message: approvedRoute
+              ? `Recovery simulation: ${approvedRoute.label}`
+              : `Demo journey: ${step * 5}%`,
+          }),
+        });
 
-      if (version !== simulationVersion.current) break;
+        if (version !== simulationVersion.current) break;
 
-      await load();
+        await load();
 
-      if (step < 20) {
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, 2000)
+        if (step < 20) {
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, 2000)
+          );
+        }
+      }
+    } catch (err) {
+      if (version === simulationVersion.current) {
+        setError(
+          err instanceof Error ? err.message : "Simulation stopped"
         );
       }
-    }
-  } catch (err) {
-    if (version === simulationVersion.current) {
-      setError(
-        err instanceof Error ? err.message : "Simulation stopped"
-      );
-    }
-  } finally {
-    if (version === simulationVersion.current) {
-      setRunning(false);
+    } finally {
+      if (version === simulationVersion.current) {
+        setRunning(false);
+      }
     }
   }
-}
 
   function stopSimulation() {
     ++simulationVersion.current;
@@ -503,31 +517,31 @@ function demoPointAt(
       </p>
 
       {data.shipment.recoveryRoute && (
-  <div className="tracking-simulator">
-    <h4>Approved transfer route</h4>
-    <p>{data.shipment.recoveryRoute.label}</p>
-    <p>
-      Estimated handoff/pickup allowance:{" "}
-      {data.shipment.recoveryRoute.handoffMinutes} minutes.
-    </p>
-    <p className="tracking-muted">
-      This allowance remains in the ETA until the recorded
-      position passes the transfer hub. It is a demo estimate,
-      not confirmation of a physical handoff.
-    </p>
-  </div>
-)}
+        <div className="tracking-simulator">
+          <h4>Approved transfer route</h4>
+          <p>{data.shipment.recoveryRoute.label}</p>
+          <p>
+            Estimated handoff/pickup allowance:{" "}
+            {data.shipment.recoveryRoute.handoffMinutes} minutes.
+          </p>
+          <p className="tracking-muted">
+            This allowance remains in the ETA until the recorded
+            position passes the transfer hub. It is a demo estimate,
+            not confirmation of a physical handoff.
+          </p>
+        </div>
+      )}
 
       <TrackingMap
-  origin={origin}
-  destination={destination}
-  current={current}
-  routePoints={data.shipment.recoveryRoute?.points}
-/>
+        origin={origin}
+        destination={destination}
+        current={current}
+        routePoints={data.shipment.recoveryRoute?.points}
+      />
       <ShipmentETA
-  shipmentId={shipmentId}
-  trackingVersion={`${data.events[0]?.id ?? ""}:${data.shipment.routeRevision}:${data.shipment.destinationLatitude}:${data.shipment.destinationLongitude}`}
-/>
+        shipmentId={shipmentId}
+        trackingVersion={`${data.events[0]?.id ?? ""}:${data.shipment.routeRevision}:${data.shipment.destinationLatitude}:${data.shipment.destinationLongitude}`}
+      />
 
       {data.latestLocation && (
         <p className="tracking-muted">

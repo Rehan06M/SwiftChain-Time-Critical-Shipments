@@ -81,7 +81,13 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
-    void refreshSession();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) {
+        void refreshSession();
+      }
+    });
 
     function handlePageShow(event: PageTransitionEvent) {
       if (event.persisted) {
@@ -103,6 +109,7 @@ export function AuthProvider({
     );
 
     return () => {
+      active =false;
       window.removeEventListener(
         "pageshow",
         handlePageShow
@@ -185,6 +192,7 @@ export function AuthProvider({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Auth hook shares its provider's context.
 export function useAuth() {
   const context = useContext(AuthContext);
 

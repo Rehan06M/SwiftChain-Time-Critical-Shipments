@@ -55,7 +55,7 @@ export default function TransitRecovery({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = window.setInterval(() => {

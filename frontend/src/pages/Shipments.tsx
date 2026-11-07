@@ -87,9 +87,21 @@ export default function Shipments() {
     }
   }, []);
 
+
   useEffect(() => {
-    void load();
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) {
+        void load();
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, [load]);
+
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();

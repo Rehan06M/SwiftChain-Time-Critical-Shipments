@@ -75,15 +75,22 @@ export default function DispatcherRecovery() {
     }
   }, []);
 
+
   useEffect(() => {
     const controller = new AbortController();
 
-    void load(controller.signal).catch((err) => {
-      if (!controller.signal.aborted) {
-        setMessage(
-          err instanceof Error ? err.message : "Unable to load shipments"
-        );
-      }
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+
+      void load(controller.signal).catch((err) => {
+        if (!controller.signal.aborted) {
+          setMessage(
+            err instanceof Error
+              ? err.message
+              : "Unable to load shipments"
+          );
+        }
+      });
     });
 
     return () => controller.abort();
@@ -326,8 +333,8 @@ export default function DispatcherRecovery() {
                         </div>
                         <div
                           className={`proposal-badge ${proposal.meetsDeadline
-                              ? "badge-feasible"
-                              : "badge-infeasible"
+                            ? "badge-feasible"
+                            : "badge-infeasible"
                             }`}
                         >
                           {proposal.meetsDeadline ? (

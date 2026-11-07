@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "seed:auth": "tsx src/scripts/seed.ts"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",

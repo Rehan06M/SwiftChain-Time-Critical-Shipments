@@ -23,9 +23,14 @@ export default function BookingSummary({ shipmentId }: Props) {
     let active = true;
     let requestInProgress = false;
 
-    setBooking(null);
-    setError("");
-    setLoading(true);
+    queueMicrotask(() => {
+      if (!active) return;
+
+      setBooking(null);
+      setError("");
+      setLoading(true);
+    });
+
 
     async function refreshBooking(initial = false) {
       if (requestInProgress) return;

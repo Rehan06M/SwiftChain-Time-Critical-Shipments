@@ -154,12 +154,22 @@ export default function Dashboard() {
     "impact"
   );
 
+
   useEffect(() => {
-    ++simulationVersion.current;
-    setSimulating(false);
+    const versionRef = simulationVersion;
+    let active = true;
+
+    ++versionRef.current;
+
+    queueMicrotask(() => {
+      if (active) {
+        setSimulating(false);
+      }
+    });
 
     return () => {
-      ++simulationVersion.current;
+      active = false;
+      ++versionRef.current;
     };
   }, [selectedId, user?.id]);
 
@@ -221,19 +231,28 @@ export default function Dashboard() {
     : "";
 
   useEffect(() => {
+
     if (!selectedId || !selected || selected.status !== "booked") {
-      setEta(null);
-      setEtaError("");
+      queueMicrotask(() => {
+        setEta(null);
+        setEtaError("");
+      });
       return;
     }
 
     const controller = new AbortController();
     let pending = false;
 
-    setEta(null);
-    setEtaError("");
+
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        setEta(null);
+        setEtaError("");
+      }
+    });
 
     async function loadETA() {
+
       if (pending) return;
       pending = true;
 

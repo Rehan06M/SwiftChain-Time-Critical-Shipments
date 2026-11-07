@@ -21,9 +21,6 @@ export default function TrackingMap(props: Props) {
   const updateMap = useRef<(() => void) | null>(null);
   const [error, setError] = useState("");
 
-
-  latestProps.current = props;
-
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -227,14 +224,12 @@ export default function TrackingMap(props: Props) {
     };
   }, []);
 
+
   useEffect(() => {
-  updateMap.current?.();
-}, [
-  props.origin,
-  props.destination,
-  props.current,
-  props.routePoints,
-]);
+    latestProps.current = props;
+    updateMap.current?.();
+  }, [props]);
+
   return (
     <div>
       <div

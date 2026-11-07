@@ -86,9 +86,21 @@ export default function PricingBooking({
     [shipment.id]
   );
 
+
   useEffect(() => {
-    void requestQuotes(specialHandling, afterHours);
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) {
+        void requestQuotes(specialHandling, afterHours);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, [requestQuotes, specialHandling, afterHours, revision]);
+
 
   async function book(quote: DeliveryQuote) {
     if (bookingId) return;
@@ -346,9 +358,8 @@ export default function PricingBooking({
                     </div>
 
                     <div
-                      className={`quote-feasibility-tag ${
-                        quote.meetsDeadline ? "quote-feasible" : "quote-late"
-                      }`}
+                      className={`quote-feasibility-tag ${quote.meetsDeadline ? "quote-feasible" : "quote-late"
+                        }`}
                     >
                       {quote.meetsDeadline ? (
                         <CheckCircle2 size={15} />

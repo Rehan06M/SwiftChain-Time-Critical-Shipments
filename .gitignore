@@ -30,3 +30,23 @@ python-service/venv/
 python-service/__pycache__/
 python-service/**/*.py[cod]
 PROJECT_ANALYSIS.md
+
+
+# Database backups and exports
+*.backup
+*.dump
+*.sql.gz
+
+# Private keys and credentials
+*.pem
+*.key
+*.p12
+
+# Local diagnostics
+*.log
+*.tsbuildinfo
+
+# Local test results
+coverage/
+playwright-report/
+test-results/
