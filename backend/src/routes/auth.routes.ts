@@ -105,6 +105,40 @@ function publicUser(user: Record<string, unknown>) {
   };
 }
 
+
+router.get(
+  "/socket-ticket",
+  requireAuth,
+  (req: AuthRequest, res) => {
+    const secret = process.env.JWT_SECRET;
+    const user = req.authUser;
+
+    if (!secret || !user) {
+      res.status(401).json({
+        message: "Authentication required",
+      });
+      return;
+    }
+
+    const ticket = jwt.sign(
+      {
+        role: user.role,
+        sessionVersion: user.sessionVersion,
+      },
+      secret,
+      {
+        subject: user.id,
+        audience: "swiftchain-socket",
+        algorithm: "HS256",
+        expiresIn: "90s",
+      }
+    );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ticket });
+  }
+);
+
 // Public carrier catalogue for invite-controlled registration.
 router.get("/registration-carriers", async (_req, res) => {
   try {

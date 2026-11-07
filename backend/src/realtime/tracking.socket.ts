@@ -6,15 +6,27 @@ import { z } from "zod";
 import { db } from "../config/db.js";
 import type { AuthUser } from "../middleware/auth.js";
 
-async function authenticate(cookieHeader?: string): Promise<AuthUser> {
+async function authenticate(
+  cookieHeader?: string,
+  ticket?: string
+): Promise<AuthUser> {
   const cookie = cookieHeader
     ?.split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith("swiftchain_session="));
 
-  const token = cookie
-    ? decodeURIComponent(cookie.slice("swiftchain_session=".length))
-    : undefined;
+
+  const usingTicket =
+    typeof ticket === "string" && ticket.length > 0;
+
+  const token = usingTicket
+    ? ticket
+    : cookie
+      ? decodeURIComponent(
+        cookie.slice("swiftchain_session=".length)
+      )
+      : undefined;
+
 
   const secret = process.env.JWT_SECRET;
 
@@ -22,9 +34,14 @@ async function authenticate(cookieHeader?: string): Promise<AuthUser> {
     throw new Error("Authentication required");
   }
 
+
   const decoded = jwt.verify(token, secret, {
     algorithms: ["HS256"],
+    ...(usingTicket
+      ? { audience: "swiftchain-socket" }
+      : {}),
   });
+
 
   if (
     typeof decoded !== "object" ||
@@ -60,6 +77,30 @@ async function authenticate(cookieHeader?: string): Promise<AuthUser> {
   };
 }
 
+
+async function validateConnectedUser(
+  user: AuthUser
+): Promise<void> {
+  const result = await db.query(
+    `
+      SELECT role, is_active, session_version
+      FROM public.users
+      WHERE id = $1
+    `,
+    [user.id]
+  );
+
+  const account = result.rows[0];
+
+  if (
+    !account?.is_active ||
+    account.role !== user.role ||
+    account.session_version !== user.sessionVersion
+  ) {
+    throw new Error("Session no longer valid");
+  }
+}
+
 export function attachTrackingSocket(
   httpServer: HttpServer,
   frontendUrl: string
@@ -78,9 +119,17 @@ export function attachTrackingSocket(
 
   io.use(async (socket, next) => {
     try {
+
+      const ticket =
+        typeof socket.handshake.auth?.ticket === "string"
+          ? socket.handshake.auth.ticket
+          : undefined;
+
       socket.data.user = await authenticate(
-        socket.handshake.headers.cookie
+        socket.handshake.headers.cookie,
+        ticket
       );
+
 
       next();
     } catch {
@@ -90,10 +139,23 @@ export function attachTrackingSocket(
 
   io.on("connection", (socket) => {
     // Recheck expiry, logout, and account changes.
+
+    const connectedAt = Date.now();
+
     const sessionCheck = setInterval(() => {
-      void authenticate(socket.handshake.headers.cookie)
-        .catch(() => socket.disconnect(true));
+      if (
+        Date.now() - connectedAt >=
+        8 * 60 * 60 * 1000
+      ) {
+        socket.disconnect(true);
+        return;
+      }
+
+      void validateConnectedUser(
+        socket.data.user as AuthUser
+      ).catch(() => socket.disconnect(true));
     }, 30_000);
+
 
     socket.on("disconnect", () => {
       clearInterval(sessionCheck);
@@ -111,7 +173,7 @@ export function attachTrackingSocket(
         const reply =
           typeof acknowledge === "function"
             ? acknowledge
-            : () => {};
+            : () => { };
 
         const parsed = z.uuid().safeParse(shipmentId);
 
@@ -121,18 +183,49 @@ export function attachTrackingSocket(
         }
 
         try {
-          const user = await authenticate(
-            socket.handshake.headers.cookie
-          );
+
+          const user = socket.data.user as AuthUser;
+
+          await validateConnectedUser(user);
+
 
           const result = await db.query(
             `
-              SELECT id
-              FROM public.shipments
-              WHERE id = $1 AND created_by = $2
-            `,
-            [parsed.data, user.id]
+    SELECT s.id
+    FROM public.shipments s
+    WHERE s.id = $1
+      AND (
+        (
+          $3 = 'shipper'
+          AND s.created_by = $2
+        )
+        OR (
+          $3 = 'dispatcher'
+          AND EXISTS (
+            SELECT 1
+            FROM public.shipment_dispatchers sd
+            WHERE sd.shipment_id = s.id
+              AND sd.user_id = $2
+          )
+        )
+        OR (
+          $3 = 'carrier'
+          AND EXISTS (
+            SELECT 1
+            FROM public.shipment_bookings b
+            JOIN public.carrier_service_lanes l
+              ON l.id = b.carrier_lane_id
+            JOIN public.carrier_accounts ca
+              ON ca.carrier_id = l.carrier_id
+            WHERE b.shipment_id = s.id
+              AND ca.user_id = $2
+          )
+        )
+      )
+  `,
+            [parsed.data, user.id, user.role]
           );
+
 
           if (!result.rows[0]) {
             reply({ ok: false, message: "Shipment not found" });
