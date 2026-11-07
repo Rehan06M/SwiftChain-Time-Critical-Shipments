@@ -150,11 +150,29 @@ export default function ShipmentTracking({
       }
     });
 
-    const socket = io(SOCKET_URL, {
 
+    const socket = io(SOCKET_URL, {
       withCredentials: true,
       autoConnect: false,
+
+      auth: (callback) => {
+        void apiRequest<{ ticket: string }>(
+          "/auth/socket-ticket"
+        )
+          .then(({ ticket }) => {
+            callback({ ticket });
+          })
+          .catch((error) => {
+            console.error(
+              "Socket authentication failed:",
+              error
+            );
+
+            callback({ ticket: "" });
+          });
+      },
     });
+
 
     socket.on("connect", () => {
       setConnection("Subscribing");
