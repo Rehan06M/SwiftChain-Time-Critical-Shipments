@@ -209,30 +209,17 @@ app.use("/api", (_req, res) => {
   });
 });
 
-if (process.env.NODE_ENV === "production") {
-  // The production start command runs inside backend/.
-  const frontendDist = path.resolve(
-    process.cwd(),
-    "../frontend/dist"
-  );
-
-  // Serve built JS, CSS, images and landing.html.
-  app.use(express.static(frontendDist));
-
-  // Let React Router handle frontend URLs.
-  // Express 5 requires a named wildcard.
-  app.get("/{*path}", (_req, res) => {
-    res.sendFile(
-      path.join(frontendDist, "index.html")
-    );
+app.use("/api", (_req, res) => {
+  res.status(404).json({
+    message: "API route not found",
   });
-} else {
-  app.use((_req, res) => {
-    res.status(404).json({
-      message: "Route not found",
-    });
+});
+
+app.use((_req, res) => {
+  res.status(404).json({
+    message: "Route not found",
   });
-}
+});
 
 app.use((
   error: Error,
