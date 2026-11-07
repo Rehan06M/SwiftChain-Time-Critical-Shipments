@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { apiRequest } from "../lib/api";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  Navigation,
+} from "lucide-react";
 
 interface Shipment {
   id: string;
@@ -28,6 +34,12 @@ const money = (value: number) =>
     style: "currency",
     currency: "INR",
   }).format(value);
+
+const date = (value: string) =>
+  new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
 export default function TransitRecovery({
   shipments,
@@ -66,10 +78,13 @@ export default function TransitRecovery({
   }
 
   async function approve(proposal: Proposal) {
-    if (!window.confirm(
-      `Approve ${proposal.routeName} for an additional ` +
-      `${money(proposal.additionalCostInr)}? No original-booking refund.`
-    )) return;
+    if (
+      !window.confirm(
+        `Approve ${proposal.routeName} for an additional ` +
+          `${money(proposal.additionalCostInr)}? No original-booking refund.`
+      )
+    )
+      return;
 
     setBusy(true);
     setMessage("");
@@ -84,122 +99,200 @@ export default function TransitRecovery({
 
       setProposals([]);
       setMessage(
-        `${result.message}. Arrival: ` +
-        new Date(result.estimatedArrival).toLocaleString("en-IN")
+        `${result.message}. Arrival: ` + date(result.estimatedArrival)
       );
     } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Approval failed"
-      );
+      setMessage(err instanceof Error ? err.message : "Approval failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className="tracking-panel">
-      <h2>In-Transit Recovery</h2>
+    <div className="transit-recovery-container">
+      <div className="transit-controls-bar">
+        <div className="transit-select-wrap">
+          <label htmlFor="transit-shipment-select">
+            Select an in-transit candidate:
+          </label>
+          <select
+            id="transit-shipment-select"
+            aria-label="Shipment for transit recovery"
+            value={selected}
+            disabled={busy || shipments.length === 0}
+            onChange={(event) => {
+              setSelected(event.target.value);
+              setProposals([]);
+              setMessage("");
+            }}
+          >
+            <option value="">
+              {shipments.length === 0
+                ? "No eligible in-transit shipments"
+                : "— Select eligible shipment —"}
+            </option>
+            {shipments.map((shipment) => (
+              <option key={shipment.id} value={shipment.id}>
+                {shipment.trackingCode}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <p>
-        Pause location simulation before generating options.
-        A location newer than two minutes is required.
-      </p>
+        <button
+          type="button"
+          className="primary-button transit-generate-btn"
+          disabled={busy || !selected}
+          onClick={() => void generate()}
+        >
+          <Navigation size={15} />
+          <span>{busy ? "Evaluating Routes..." : "Find Transfer Routes"}</span>
+        </button>
+      </div>
+
+      <div className="transit-guidance-note">
+        <Info size={15} />
+        <span>
+          Pause carrier simulation before generating routes. A location update
+          newer than 2 minutes is required to ensure waypoint feasibility.
+        </span>
+      </div>
 
       {shipments.length === 0 && (
-  <p>
-    No assigned shipments are currently Picked Up or In Transit.
-    Out for Delivery and Delivered shipments do not qualify.
-  </p>
-)}
+        <div className="recovery-sub-empty">
+          <AlertTriangle size={18} />
+          <span>
+            No assigned shipments are currently Picked Up or In Transit. Out for
+            Delivery and Delivered shipments do not qualify for transfer recovery.
+          </span>
+        </div>
+      )}
 
-      <select
-        aria-label="Shipment for transit recovery"
-        value={selected}
-        disabled={busy}
-        onChange={(event) => {
-          setSelected(event.target.value);
-          setProposals([]);
-          setMessage("");
-        }}
-      >
-        <option value="">Select an assigned shipment</option>
-        {shipments.map((shipment) => (
-          <option key={shipment.id} value={shipment.id}>
-            {shipment.trackingCode}
-          </option>
-        ))}
-      </select>
+      {message && (
+        <div className="form-alert" role="status">
+          <Info size={16} />
+          <span>{message}</span>
+        </div>
+      )}
 
-      <button
-        type="button"
-        className="primary-button"
-        disabled={busy || !selected}
-        onClick={() => void generate()}
-      >
-        {busy ? "Processing..." : "Find transfer routes"}
-      </button>
+      {proposals.length > 0 && (
+        <div className="transit-proposals-list">
+          <div className="proposals-header">
+            <h3>Identified Transfer Alternatives</h3>
+            <span className="proposals-count">
+              {proposals.length} route options
+            </span>
+          </div>
 
-      {message && <p role="status">{message}</p>}
+          <div className="proposals-grid">
+            {proposals.map((proposal) => (
+              <article className="proposal-card" key={proposal.id}>
+                <div className="proposal-card-head">
+                  <div>
+                    <span className="proposal-carrier-name">
+                      {proposal.routeName}
+                    </span>
+                    <span className="proposal-mode">
+                      Carrier: {proposal.carrierName} · Mode:{" "}
+                      {proposal.transportMode.replaceAll("_", " ")}
+                    </span>
+                  </div>
+                  <div
+                    className={`proposal-badge ${
+                      proposal.meetsDeadline
+                        ? "badge-feasible"
+                        : "badge-infeasible"
+                    }`}
+                  >
+                    {proposal.meetsDeadline ? (
+                      <CheckCircle2 size={13} />
+                    ) : (
+                      <AlertTriangle size={13} />
+                    )}
+                    <span>
+                      {proposal.meetsDeadline
+                        ? "Meets Deadline"
+                        : "Misses Deadline"}
+                    </span>
+                  </div>
+                </div>
 
-      {proposals.map((proposal) => (
-        <article className="tracking-simulator" key={proposal.id}>
-          <h3>{proposal.routeName}</h3>
+                <div className="transit-transfer-point">
+                  <Navigation size={14} />
+                  <span>Transfer Hub: <strong>{proposal.transferPoint}</strong></span>
+                </div>
 
-          <p>
-            {proposal.carrierName} ·{" "}
-            {proposal.transportMode.replaceAll("_", " ")}
-          </p>
+                <div className="proposal-metrics">
+                  <div className="prop-metric">
+                    <span className="prop-label">Approach Time</span>
+                    <strong className="prop-val">
+                      {Math.ceil(proposal.approachMinutes)} min
+                    </strong>
+                  </div>
 
-          <p>Transfer: {proposal.transferPoint}</p>
+                  <div className="prop-metric">
+                    <span className="prop-label">Handoff Duration</span>
+                    <strong className="prop-val">
+                      {proposal.handoffMinutes} min
+                    </strong>
+                  </div>
 
-          <p>
-            Approach: {Math.ceil(proposal.approachMinutes)} min
-            {" · "}
-            Handoff/pickup: {proposal.handoffMinutes} min
-          </p>
+                  <div className="prop-metric">
+                    <span className="prop-label">Time Saved</span>
+                    <strong className="prop-val val-highlight">
+                      {Math.floor(proposal.timeSavedMinutes)} min
+                    </strong>
+                  </div>
 
-          <p>
-            Replacement service: {money(proposal.serviceCostInr)}
-            {" · "}
-            Transfer charge: {money(proposal.handoffCostInr)}
-          </p>
+                  <div className="prop-metric">
+                    <span className="prop-label">Predicted Arrival</span>
+                    <strong className="prop-val">
+                      {date(proposal.estimatedArrival)}
+                    </strong>
+                  </div>
 
-          <p>
-            <strong>
-              Additional total: {money(proposal.additionalCostInr)}
-            </strong>
-          </p>
+                  <div className="prop-metric">
+                    <span className="prop-label">Replacement Service</span>
+                    <strong className="prop-val">
+                      {money(proposal.serviceCostInr)}
+                    </strong>
+                  </div>
 
-          <p>
-            Time saved: {Math.floor(proposal.timeSavedMinutes)} min
-          </p>
+                  <div className="prop-metric">
+                    <span className="prop-label">Transfer Charge</span>
+                    <strong className="prop-val">
+                      {money(proposal.handoffCostInr)}
+                    </strong>
+                  </div>
+                </div>
 
-          <p>
-            Arrival:{" "}
-            {new Date(proposal.estimatedArrival).toLocaleString("en-IN")}
-          </p>
+                <div className="proposal-total-row">
+                  <span>Additional Total Commitment:</span>
+                  <strong className="val-cost">
+                    {money(proposal.additionalCostInr)}
+                  </strong>
+                </div>
 
-          <p>
-            {proposal.meetsDeadline
-              ? "Estimated to meet the deadline"
-              : "Improves arrival but still misses the deadline"}
-          </p>
+                <div className="proposal-footer">
+                  <span className="expiry-hint">
+                    Approval rechecks position, service, and net benefit.
+                  </span>
 
-          <p className="tracking-muted">
-            Configured simulation route. Stop movement while reviewing.
-            Approval rechecks position, service, cost and benefit.
-          </p>
-
-          <button
-            type="button"
-            className="primary-button"
-            disabled={busy}
-            onClick={() => void approve(proposal)}
-          >
-            Approve transfer recovery
-          </button>
-        </article>
-      ))}
-    </section>
+                  <button
+                    type="button"
+                    className="primary-button approve-btn"
+                    disabled={busy}
+                    onClick={() => void approve(proposal)}
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>Approve Transfer Recovery</span>
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

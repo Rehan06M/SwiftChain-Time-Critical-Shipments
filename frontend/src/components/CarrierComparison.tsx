@@ -1,13 +1,8 @@
-
-import {
-  useEffect,
-  useState,
-} from "react";
-
+import { useEffect, useState } from "react";
 import {
   X,
   Truck,
-  Clock3,
+  Clock,
   ShieldCheck,
   Wallet,
   AlertTriangle,
@@ -16,7 +11,6 @@ import {
 } from "lucide-react";
 
 import type { Shipment } from "../lib/shipments";
-
 import {
   getCarrierMatches,
   type CarrierMatchingResponse,
@@ -38,7 +32,6 @@ function formatMoney(amount: number) {
 function formatDuration(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
-
   return `${hours}h ${remaining}m`;
 }
 
@@ -49,13 +42,8 @@ function formatDate(value: string) {
   });
 }
 
-export default function CarrierComparison({
-  shipment,
-  onClose,
-}: Props) {
-  const [data, setData] =
-    useState<CarrierMatchingResponse | null>(null);
-
+export default function CarrierComparison({ shipment, onClose }: Props) {
+  const [data, setData] = useState<CarrierMatchingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -68,19 +56,14 @@ export default function CarrierComparison({
       setError("");
 
       try {
-        const result = await getCarrierMatches(
-          shipment.id
-        );
-
+        const result = await getCarrierMatches(shipment.id);
         if (active) {
           setData(result);
         }
       } catch (err) {
         if (active) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load recommendations"
+            err instanceof Error ? err.message : "Unable to load recommendations"
           );
         }
       } finally {
@@ -98,10 +81,7 @@ export default function CarrierComparison({
   }, [shipment.id, revision]);
 
   return (
-    <div
-      className="carrier-modal-backdrop"
-      role="presentation"
-    >
+    <div className="carrier-modal-backdrop" role="presentation">
       <section
         className="carrier-modal"
         role="dialog"
@@ -113,12 +93,8 @@ export default function CarrierComparison({
             <span className="section-eyebrow eyebrow-dark">
               SMART CARRIER MATCHING
             </span>
-
-            <h2 id="carrier-modal-title">
-              Carrier Recommendations
-            </h2>
-
-            <p>
+            <h2 id="carrier-modal-title">Carrier Recommendations</h2>
+            <p className="tracking-muted">
               Shipment {shipment.trackingCode}
             </p>
           </div>
@@ -133,33 +109,30 @@ export default function CarrierComparison({
           </button>
         </header>
 
+        {/* Shipment Overview Row */}
         <div className="carrier-shipment-summary">
-          <div>
-            <span>Route</span>
-            <strong>
-              {shipment.originCity} →{" "}
-              {shipment.destinationCity}
+          <div className="sum-block">
+            <span className="sum-label">Route</span>
+            <strong className="sum-val">
+              {shipment.originCity} → {shipment.destinationCity}
             </strong>
           </div>
 
-          <div>
-            <span>Cargo</span>
-            <strong>
-              {shipment.cargoType} ·{" "}
-              {shipment.weightKg} kg
+          <div className="sum-block">
+            <span className="sum-label">Cargo</span>
+            <strong className="sum-val">
+              {shipment.cargoType} · {shipment.weightKg} kg
             </strong>
           </div>
 
-          <div>
-            <span>Deadline</span>
-            <strong>
-              {formatDate(shipment.deadline)}
-            </strong>
+          <div className="sum-block">
+            <span className="sum-label">Deadline</span>
+            <strong className="sum-val">{formatDate(shipment.deadline)}</strong>
           </div>
 
-          <div>
-            <span>Urgency</span>
-            <strong>
+          <div className="sum-block">
+            <span className="sum-label">Urgency Score</span>
+            <strong className="sum-val val-urgency">
               {data
                 ? `${data.urgencyScore}/100 — ${data.urgencyLevel}`
                 : `${shipment.urgency.score}/100`}
@@ -167,11 +140,11 @@ export default function CarrierComparison({
           </div>
         </div>
 
+        {/* Toolbar & Simulation Disclaimer */}
         <div className="carrier-toolbar">
-          <p>
-            Carrier estimates are simulated
-            demonstration data, not guaranteed
-            delivery commitments.
+          <p className="tracking-muted">
+            Carrier estimates represent simulated demonstration data, not
+            guaranteed delivery commitments.
           </p>
 
           <button
@@ -180,162 +153,128 @@ export default function CarrierComparison({
             onClick={() => setRevision((n) => n + 1)}
             disabled={loading}
           >
-            <RefreshCw size={16} />
-            Refresh
+            <RefreshCw size={15} />
+            <span>Recalculate</span>
           </button>
         </div>
 
         {loading && (
           <div className="carrier-message">
-            Calculating eligible carrier matches...
+            <RefreshCw size={24} className="spin-icon" />
+            <span>Evaluating eligible carrier performance models...</span>
           </div>
         )}
 
         {error && (
           <div className="form-alert" role="alert">
-            {error}
+            <AlertTriangle size={18} />
+            <span>{error}</span>
           </div>
         )}
 
-        {!loading &&
-          !error &&
-          data?.matches.length === 0 && (
-            <div className="carrier-message">
-              <AlertTriangle size={28} />
+        {!loading && !error && data?.matches.length === 0 && (
+          <div className="carrier-message">
+            <AlertTriangle size={28} />
+            <h3>No Compatible Carrier Found</h3>
+            <p>
+              No currently available demonstration carrier supports this route,
+              cargo type, and weight combination.
+            </p>
+          </div>
+        )}
 
-              <h3>No compatible carrier found</h3>
+        {!loading && !error && data && data.matches.length > 0 && (
+          <div className="carrier-results">
+            {data.matches.map((carrier) => (
+              <article className="carrier-card" key={carrier.laneId}>
+                <div className="carrier-card-heading">
+                  <div className="carrier-name-group">
+                    <div className="carrier-icon">
+                      <Truck size={22} />
+                    </div>
 
-              <p>
-                No currently available demonstration
-                service supports this route, cargo
-                type, and weight combination.
-              </p>
-            </div>
-          )}
+                    <div>
+                      <span
+                        className={`carrier-rank ${
+                          carrier.rank === 1 ? "rank-best" : "rank-standard"
+                        }`}
+                      >
+                        {carrier.rank === 1
+                          ? "BEST OVERALL MATCH"
+                          : `RANK #${carrier.rank}`}
+                      </span>
 
-        {!loading &&
-          !error &&
-          data &&
-          data.matches.length > 0 && (
-            <div className="carrier-results">
-              {data.matches.map((carrier) => (
-                <article
-                  className="carrier-card"
-                  key={carrier.laneId}
+                      <h3>{carrier.carrierName}</h3>
+
+                      <p className="carrier-mode-text">
+                        {carrier.transportMode === "air_ground"
+                          ? "Air + Ground Intermodal"
+                          : "Ground Transport"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="carrier-match-score">
+                    <strong>{carrier.matchingScore}</strong>
+                    <span>/100 match</span>
+                  </div>
+                </div>
+
+                <div className="carrier-metrics">
+                  <div className="metric-col">
+                    <Clock size={16} />
+                    <span>Estimated Duration</span>
+                    <strong>{formatDuration(carrier.estimatedMinutes)}</strong>
+                  </div>
+
+                  <div className="metric-col">
+                    <ShieldCheck size={16} />
+                    <span>On-Time Reliability</span>
+                    <strong>{carrier.reliability}%</strong>
+                  </div>
+
+                  <div className="metric-col">
+                    <Wallet size={16} />
+                    <span>Estimated Cost</span>
+                    <strong className="cost-val">
+                      {formatMoney(carrier.estimatedCostInr)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  className={`carrier-feasibility ${
+                    carrier.meetsDeadline ? "feasible" : "infeasible"
+                  }`}
                 >
-                  <div className="carrier-card-heading">
-                    <div className="carrier-name-group">
-                      <div className="carrier-icon">
-                        <Truck size={22} />
-                      </div>
+                  {carrier.meetsDeadline ? (
+                    <CheckCircle2 size={18} />
+                  ) : (
+                    <AlertTriangle size={18} />
+                  )}
 
-                      <div>
-                        <span className="carrier-rank">
-                          {carrier.rank === 1
-                            ? "BEST OVERALL MATCH"
-                            : `RANK #${carrier.rank}`}
-                        </span>
-
-                        <h3>
-                          {carrier.carrierName}
-                        </h3>
-
-                        <p>
-                          {carrier.transportMode ===
-                          "air_ground"
-                            ? "Air + Ground"
-                            : "Ground Transport"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="carrier-match-score">
-                      <strong>
-                        {carrier.matchingScore}
-                      </strong>
-                      <span>/100 match</span>
-                    </div>
+                  <div className="feasibility-text">
+                    <strong>{carrier.recommendation}</strong>
+                    <p>Estimated arrival: {formatDate(carrier.estimatedArrival)}</p>
+                    <p className="feasibility-sub">
+                      {carrier.meetsDeadline
+                        ? `${carrier.minutesBeforeDeadline} minutes before deadline`
+                        : `${Math.abs(carrier.minutesBeforeDeadline)} minutes after deadline`}
+                    </p>
                   </div>
-
-                  <div className="carrier-metrics">
-                    <div>
-                      <Clock3 size={19} />
-                      <span>Estimated time</span>
-                      <strong>
-                        {formatDuration(
-                          carrier.estimatedMinutes
-                        )}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <ShieldCheck size={19} />
-                      <span>On-time history</span>
-                      <strong>
-                        {carrier.reliability}%
-                      </strong>
-                    </div>
-
-                    <div>
-                      <Wallet size={19} />
-                      <span>Estimated cost</span>
-                      <strong>
-                        {formatMoney(
-                          carrier.estimatedCostInr
-                        )}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div
-                    className={
-                      carrier.meetsDeadline
-                        ? "carrier-feasibility feasible"
-                        : "carrier-feasibility infeasible"
-                    }
-                  >
-                    {carrier.meetsDeadline ? (
-                      <CheckCircle2 size={18} />
-                    ) : (
-                      <AlertTriangle size={18} />
-                    )}
-
-                    <div>
-                      <strong>
-                        {carrier.recommendation}
-                      </strong>
-
-                      <p>
-                        Estimated arrival:{" "}
-                        {formatDate(
-                          carrier.estimatedArrival
-                        )}
-                      </p>
-
-                      <p>
-                        {carrier.meetsDeadline
-                          ? `${carrier.minutesBeforeDeadline} minutes before deadline`
-                          : `${Math.abs(carrier.minutesBeforeDeadline)} minutes after deadline`}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
 
         <footer className="carrier-modal-footer">
-          <p>
-            Carrier comparison only. Selection,
-            pricing confirmation, and booking will
-            be implemented in Step 7.
+          <p className="tracking-muted">
+            Carrier comparison only. Selection, pricing confirmation, and
+            booking are confirmed via the Get Quote workflow.
           </p>
 
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={onClose}
-          >
+          <button className="secondary-button" type="button" onClick={onClose}>
             Close
           </button>
         </footer>

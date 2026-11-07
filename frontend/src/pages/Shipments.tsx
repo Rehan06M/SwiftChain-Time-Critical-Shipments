@@ -1,34 +1,34 @@
-
 import {
   useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
-
-import { Link } from "react-router-dom";
-
 import {
   Truck,
   Plus,
   Search,
   Package,
-  Clock3,
+  Clock,
   CheckCircle2,
   XCircle,
   Pencil,
-  LogOut,
   RefreshCw,
   ReceiptText,
   X,
+  Eye,
+  ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 
-import { useAuth } from "../context/AuthContext";
-
+import WorkspaceLayout from "../components/WorkspaceLayout";
 import ShipmentForm from "../components/ShipmentForm";
 import CarrierComparison from "../components/CarrierComparison";
 import PricingBooking from "../components/PricingBooking";
 import BookingSummary from "../components/BookingSummary";
+import ShipmentTracking from "../components/ShipmentTracking";
+import ShipmentAlerts from "../components/ShipmentAlerts";
+import DispatcherAssignment from "../components/DispatcherAssignment";
 
 import {
   listShipments,
@@ -38,15 +38,6 @@ import {
   type Shipment,
   type ShipmentInput,
 } from "../lib/shipments";
-
-import ShipmentTracking from "../components/ShipmentTracking";
-import ShipmentAlerts from "../components/ShipmentAlerts";
-
-import DispatcherAssignment from "../components/DispatcherAssignment";
-
-// ========================================
-// FORMATTING HELPERS
-// ========================================
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString("en-IN", {
@@ -61,50 +52,24 @@ const formatMoney = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-// ========================================
-// SHIPPER DASHBOARD
-// ========================================
-
 export default function Shipments() {
-  const { user, logout } = useAuth();
-
-  // ========================================
-  // STATE
-  // ========================================
-
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
-
-  const [editing, setEditing] =
-    useState<Shipment | null>(null);
-
-  const [selected, setSelected] =
-    useState<Shipment | null>(null);
-
+  const [editing, setEditing] = useState<Shipment | null>(null);
+  const [selected, setSelected] = useState<Shipment | null>(null);
   const [comparingShipment, setComparingShipment] =
     useState<Shipment | null>(null);
-
   const [pricingShipment, setPricingShipment] =
     useState<Shipment | null>(null);
-
   const [cancellingId, setCancellingId] = useState("");
 
-  // Always use the latest loaded shipment
-  // when displaying its details.
-
   const selectedShipment = selected
-    ? shipments.find(
-        (shipment) => shipment.id === selected.id
-      ) ?? selected
+    ? shipments.find((s) => s.id === selected.id) ?? selected
     : null;
-
-  // ========================================
-  // FETCH SHIPMENTS
-  // ========================================
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,13 +77,10 @@ export default function Shipments() {
 
     try {
       const data = await listShipments();
-
       setShipments(data.shipments);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load shipments"
+        err instanceof Error ? err.message : "Failed to load shipments"
       );
     } finally {
       setLoading(false);
@@ -129,16 +91,11 @@ export default function Shipments() {
     void load();
   }, [load]);
 
-  // ========================================
-  // SEARCH AND SORTING
-  // ========================================
-
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     const matches = shipments.filter((shipment) => {
       if (!query) return true;
-
       return [
         shipment.trackingCode,
         shipment.originCity,
@@ -147,12 +104,10 @@ export default function Shipments() {
         shipment.cargoType,
         shipment.status,
         shipment.urgency.level,
-      ].some((value) =>
-        value.toLowerCase().includes(query)
-      );
+      ].some((value) => value.toLowerCase().includes(query));
     });
 
-    const statusOrder = {
+    const statusOrder: Record<string, number> = {
       created: 0,
       booked: 1,
       cancelled: 2,
@@ -160,66 +115,29 @@ export default function Shipments() {
 
     return [...matches].sort((a, b) => {
       if (a.status !== b.status) {
-        return (
-          statusOrder[a.status] -
-          statusOrder[b.status]
-        );
+        return (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
       }
-
       if (a.urgency.score !== b.urgency.score) {
-        return (
-          b.urgency.score -
-          a.urgency.score
-        );
+        return b.urgency.score - a.urgency.score;
       }
-
-      return (
-        new Date(a.deadline).getTime() -
-        new Date(b.deadline).getTime()
-      );
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
     });
   }, [shipments, search]);
 
-  // ========================================
-  // DASHBOARD STATISTICS
-  // ========================================
-
-  const activeCount = shipments.filter(
-    (shipment) => shipment.status === "created"
-  ).length;
-
-  const bookedCount = shipments.filter(
-    (shipment) => shipment.status === "booked"
-  ).length;
-
-  const cancelledCount = shipments.filter(
-    (shipment) => shipment.status === "cancelled"
-  ).length;
-
+  const activeCount = shipments.filter((s) => s.status === "created").length;
+  const bookedCount = shipments.filter((s) => s.status === "booked").length;
+  const cancelledCount = shipments.filter((s) => s.status === "cancelled").length;
   const criticalCount = shipments.filter(
-    (shipment) =>
-      shipment.status === "created" &&
-      shipment.urgency.level === "Critical"
+    (s) => s.status === "created" && s.urgency.level === "Critical"
   ).length;
-
   const highCount = shipments.filter(
-    (shipment) =>
-      shipment.status === "created" &&
-      shipment.urgency.level === "High"
+    (s) => s.status === "created" && s.urgency.level === "High"
   ).length;
 
   const earliestDeadline = shipments
-    .filter(
-      (shipment) => shipment.status === "created"
-    )
-    .map((shipment) =>
-      new Date(shipment.deadline).getTime()
-    )
+    .filter((s) => s.status === "created")
+    .map((s) => new Date(s.deadline).getTime())
     .sort((a, b) => a - b)[0];
-
-  // ========================================
-  // CREATE / UPDATE SHIPMENT
-  // ========================================
 
   async function save(input: ShipmentInput) {
     if (editing) {
@@ -230,26 +148,18 @@ export default function Shipments() {
 
     setShowForm(false);
     setEditing(null);
-
     await load();
   }
 
-  // ========================================
-  // CANCEL SHIPMENT
-  // ========================================
-
   async function handleCancel(shipment: Shipment) {
     if (shipment.status !== "created") {
-      setError(
-        "Only unbooked shipments can be cancelled."
-      );
+      setError("Only unbooked shipments can be cancelled.");
       return;
     }
 
     const confirmed = window.confirm(
       `Cancel shipment ${shipment.trackingCode}?`
     );
-
     if (!confirmed) return;
 
     setCancellingId(shipment.id);
@@ -257,243 +167,181 @@ export default function Shipments() {
 
     try {
       await cancelShipment(shipment.id);
-
       setSelected(null);
-
       await load();
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to cancel shipment"
+        err instanceof Error ? err.message : "Unable to cancel shipment"
       );
     } finally {
       setCancellingId("");
     }
   }
 
-  // ========================================
-  // LOGOUT
-  // ========================================
-
-  async function handleLogout() {
-    try {
-      await logout();
-
-      window.location.replace("/");
-    } catch {
-      setError(
-        "Unable to log out. Please try again."
-      );
-    }
-  }
-
-  // ========================================
-  // RENDER
-  // ========================================
-
   return (
-    <main className="dashboard-page">
-
-      {/* ====================================
-          HEADER
-          ==================================== */}
-
-      <header className="dashboard-header">
-        <Link className="brand" to="/">
-          <span className="brand-mark">
-            <Truck size={21} />
-          </span>
-
-          SwiftChain
-        </Link>
-
-        <div className="shipment-header-actions">
-          <span className="shipment-account">
-            {user?.fullName}
-          </span>
-
-          <button
-            type="button"
-            className="logout-button"
-            onClick={handleLogout}
-          >
-            <LogOut size={17} />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* ====================================
-          DASHBOARD CONTENT
-          ==================================== */}
-
+    <WorkspaceLayout
+      pageTitle="Shipment Management"
+      pageSubtitle="Create, monitor, and manage your time-critical shipment requests."
+      pageEyebrow="SHIPPER WORKSPACE"
+      headerActions={
+        <button
+          type="button"
+          className="primary-button new-shipment-header-btn"
+          onClick={() => {
+            setEditing(null);
+            setShowForm(true);
+          }}
+        >
+          <Plus size={16} />
+          <span>New Shipment</span>
+        </button>
+      }
+    >
       <div className="shipments-container">
+        {/* Alerts panel */}
+        <ShipmentAlerts />
 
-        {/* PAGE HEADING */}
-
-        <div className="shipments-heading">
-          <div>
-            <span className="section-eyebrow eyebrow-dark">
-              SHIPPER WORKSPACE
-            </span>
-
-            <h1>Shipment Management</h1>
-
-            <p>
-              Create, monitor, and manage your
-              time-critical shipment requests.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="primary-button create-button"
-            onClick={() => {
-              setEditing(null);
-              setShowForm(true);
-            }}
-          >
-            <Plus size={19} />
-            New Shipment
-          </button>
-        </div>
-
-            <ShipmentAlerts />
-        {/* ====================================
-            STATISTICS
-            ==================================== */}
-
+        {/* Dashboard Statistics Grid */}
         <div className="shipment-stats">
-
           <div className="shipment-stat">
-            <Package size={23} />
-            <span>Total Shipments</span>
-            <strong>{shipments.length}</strong>
+            <div className="stat-icon-wrap stat-icon-neutral">
+              <Package size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Total Shipments</span>
+              <strong>{shipments.length}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <CheckCircle2 size={23} />
-            <span>Created Requests</span>
-            <strong>{activeCount}</strong>
+            <div className="stat-icon-wrap stat-icon-info">
+              <CheckCircle2 size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Created Requests</span>
+              <strong>{activeCount}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <CheckCircle2 size={23} />
-            <span>Booked Shipments</span>
-            <strong>{bookedCount}</strong>
+            <div className="stat-icon-wrap stat-icon-success">
+              <Truck size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Booked Shipments</span>
+              <strong>{bookedCount}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <Clock3 size={23} />
-            <span>Critical Urgency</span>
-            <strong>{criticalCount}</strong>
+            <div className="stat-icon-wrap stat-icon-danger">
+              <AlertTriangle size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Critical Urgency</span>
+              <strong>{criticalCount}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <Clock3 size={23} />
-            <span>High Urgency</span>
-            <strong>{highCount}</strong>
+            <div className="stat-icon-wrap stat-icon-warning">
+              <Clock size={20} />
+            </div>
+            <div className="stat-body">
+              <span>High Urgency</span>
+              <strong>{highCount}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <XCircle size={23} />
-            <span>Cancelled</span>
-            <strong>{cancelledCount}</strong>
+            <div className="stat-icon-wrap stat-icon-cancelled">
+              <XCircle size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Cancelled</span>
+              <strong>{cancelledCount}</strong>
+            </div>
           </div>
 
           <div className="shipment-stat">
-            <Clock3 size={23} />
-            <span>Next Deadline</span>
-
-            <strong className="stat-date">
-              {earliestDeadline !== undefined
-                ? formatDate(
-                    new Date(
-                      earliestDeadline
-                    ).toISOString()
-                  )
-                : "—"}
-            </strong>
+            <div className="stat-icon-wrap stat-icon-deadline">
+              <Clock size={20} />
+            </div>
+            <div className="stat-body">
+              <span>Next Deadline</span>
+              <strong className="stat-date">
+                {earliestDeadline !== undefined
+                  ? formatDate(new Date(earliestDeadline).toISOString())
+                  : "—"}
+              </strong>
+            </div>
           </div>
-
         </div>
 
-        {/* ====================================
-            SHIPMENT TABLE
-            ==================================== */}
-
+        {/* Shipment Table Card */}
         <section className="shipment-list-card">
-
           <div className="shipment-list-top">
             <div>
               <h2>Your Shipments</h2>
-              <p>Saved shipment requests</p>
+              <p className="tracking-muted">
+                Saved shipment requests and real-time status
+              </p>
             </div>
 
             <div className="shipment-tools">
-
               <div className="shipment-search">
-                <Search size={18} />
-
+                <Search size={16} className="search-icon" />
                 <input
                   type="search"
                   aria-label="Search shipments"
-                  placeholder="Search shipments..."
+                  placeholder="Search tracking ID, city, cargo..."
                   value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
+                  onChange={(event) => setSearch(event.target.value)}
                 />
               </div>
 
               <button
                 type="button"
-                className="icon-button"
+                className="secondary-button"
                 onClick={() => void load()}
                 aria-label="Refresh shipments"
                 title="Refresh"
               >
-                <RefreshCw size={19} />
+                <RefreshCw size={15} />
+                <span>Refresh</span>
               </button>
-
             </div>
           </div>
 
-          {/* ERRORS */}
-
+          {/* Errors */}
           {error && (
             <div className="form-alert" role="alert">
-              {error}
+              <AlertTriangle size={18} />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* LOADING / EMPTY / DATA */}
-
+          {/* Loading / Empty / Data */}
           {loading ? (
             <div className="shipments-empty">
-              Loading shipments...
+              <RefreshCw size={24} className="spin-icon" />
+              <span>Loading shipments...</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="shipments-empty">
-              <Package size={35} />
-
+              <Package size={36} />
               <h3>
-                {search
-                  ? "No matching shipments"
-                  : "No shipments created yet"}
+                {search ? "No matching shipments" : "No shipments created yet"}
               </h3>
-
               <p>
                 {search
-                  ? "Try a different search."
+                  ? "Try adjusting your search criteria."
                   : "Create your first urgent shipment to get started."}
               </p>
             </div>
           ) : (
             <div className="shipment-table-scroll">
               <table className="shipment-table">
-
                 <thead>
                   <tr>
                     <th>Shipment ID</th>
@@ -502,167 +350,108 @@ export default function Shipments() {
                     <th>Deadline</th>
                     <th>Urgency</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th className="th-actions">Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {filtered.map((shipment) => (
                     <tr key={shipment.id}>
-
-                      {/* TRACKING CODE */}
-
-                      <td>
-                        <strong>
-                          {shipment.trackingCode}
-                        </strong>
+                      <td className="td-tracking">
+                        <strong>{shipment.trackingCode}</strong>
                       </td>
-
-                      {/* ROUTE */}
-
-                      <td>
-                        {shipment.originCity}
-
-                        <span className="route-arrow">
-                          {" "}→{" "}
+                      <td className="td-route">
+                        <span className="route-text">
+                          {shipment.originCity}
+                          <ArrowRight size={13} className="route-arrow-icon" />
+                          {shipment.destinationCity}
                         </span>
-
-                        {shipment.destinationCity}
                       </td>
-
-                      {/* CARGO */}
-
                       <td>
-                        {shipment.cargoType}
+                        <span className="cargo-tag">{shipment.cargoType}</span>
                       </td>
-
-                      {/* DEADLINE */}
-
-                      <td>
-                        {formatDate(
-                          shipment.deadline
-                        )}
-                      </td>
-
-                      {/* URGENCY */}
-
+                      <td className="td-date">{formatDate(shipment.deadline)}</td>
                       <td>
                         {shipment.status === "cancelled" ? (
-                          <span className="urgency-muted">
-                            Not active
-                          </span>
+                          <span className="urgency-muted">Not active</span>
                         ) : (
                           <div className="urgency-cell">
-
                             <span
-                              className={
-                                `urgency-badge urgency-${shipment.urgency.level.toLowerCase()}`
-                              }
+                              className={`urgency-badge urgency-${shipment.urgency.level.toLowerCase()}`}
                             >
                               {shipment.urgency.level}
                             </span>
-
                             <strong className="urgency-number">
                               {shipment.urgency.score}/100
                             </strong>
-
                           </div>
                         )}
                       </td>
-
-                      {/* STATUS */}
-
                       <td>
                         <span
-                          className={
-                            `shipment-status ${shipment.status}`
-                          }
+                          className={`shipment-status status-${shipment.status}`}
                         >
                           {shipment.status}
                         </span>
                       </td>
-
-                      {/* ACTIONS */}
-
                       <td>
                         <div className="table-actions">
-
-                          {/* VIEW */}
-
                           <button
                             type="button"
-                            onClick={() =>
-                              setSelected(shipment)
-                            }
+                            className="secondary-button btn-xs"
+                            onClick={() => setSelected(shipment)}
                           >
-                            View
+                            <Eye size={13} />
+                            <span>View</span>
                           </button>
 
-                          {/* COMPARE CARRIERS */}
-
                           {shipment.status === "created" && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setComparingShipment(
-                                  shipment
-                                )
-                              }
+                              className="secondary-button btn-xs"
+                              onClick={() => setComparingShipment(shipment)}
                             >
-                              <Truck size={14} />
-                              Compare Carriers
+                              <Truck size={13} />
+                              <span>Compare</span>
                             </button>
                           )}
 
-                          {/* GET QUOTE */}
-
                           {shipment.status === "created" && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setPricingShipment(
-                                  shipment
-                                )
-                              }
+                              className="primary-button btn-xs"
+                              onClick={() => setPricingShipment(shipment)}
                             >
-                              <ReceiptText size={14} />
-                              Get Quote
+                              <ReceiptText size={13} />
+                              <span>Get Quote</span>
                             </button>
                           )}
 
-                          {/* EDIT */}
-
                           {shipment.status === "created" && (
                             <button
                               type="button"
+                              className="secondary-button btn-xs"
                               onClick={() => {
                                 setEditing(shipment);
                                 setShowForm(true);
                               }}
                             >
-                              <Pencil size={14} />
-                              Edit
+                              <Pencil size={13} />
+                              <span>Edit</span>
                             </button>
                           )}
-
                         </div>
                       </td>
-
                     </tr>
                   ))}
                 </tbody>
-
               </table>
             </div>
           )}
-
         </section>
       </div>
 
-      {/* ====================================
-          CREATE / EDIT MODAL
-          ==================================== */}
-
+      {/* CREATE / EDIT MODAL */}
       {showForm && (
         <ShipmentForm
           key={editing?.id ?? "new"}
@@ -675,26 +464,20 @@ export default function Shipments() {
         />
       )}
 
-      {/* ====================================
-          VIEW SHIPMENT MODAL
-          ==================================== */}
-
+      {/* VIEW SHIPMENT MODAL */}
       {selectedShipment && (
         <div className="shipment-form-overlay">
-
           <section
             className="shipment-detail-panel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="shipment-details-title"
           >
-
             <div className="shipment-form-header">
               <div>
                 <span className="section-eyebrow eyebrow-dark">
                   SHIPMENT DETAILS
                 </span>
-
                 <h2 id="shipment-details-title">
                   {selectedShipment.trackingCode}
                 </h2>
@@ -710,166 +493,108 @@ export default function Shipments() {
               </button>
             </div>
 
-            {/* SHIPMENT DETAILS */}
-
             <div className="shipment-detail-grid">
-
-              <div>
-                <span>Pickup</span>
-
-                <strong>
+              <div className="detail-item">
+                <span className="detail-label">Pickup</span>
+                <strong className="detail-city">
                   {selectedShipment.originCity}
                 </strong>
-
-                <p>
-                  {selectedShipment.originAddress}
-                </p>
+                <p className="detail-addr">{selectedShipment.originAddress}</p>
               </div>
 
-              <div>
-                <span>Destination</span>
-
-                <strong>
+              <div className="detail-item">
+                <span className="detail-label">Destination</span>
+                <strong className="detail-city">
                   {selectedShipment.destinationCity}
                 </strong>
-
-                <p>
+                <p className="detail-addr">
                   {selectedShipment.destinationAddress}
                 </p>
               </div>
 
-              <div>
-                <span>Cargo</span>
-
-                <strong>
+              <div className="detail-item">
+                <span className="detail-label">Cargo</span>
+                <strong className="detail-city">
                   {selectedShipment.cargoDescription}
                 </strong>
-
-                <p>
-                  {selectedShipment.cargoType}
-                </p>
+                <p className="detail-addr">{selectedShipment.cargoType}</p>
               </div>
 
-              <div>
-                <span>Weight</span>
-
-                <strong>
+              <div className="detail-item">
+                <span className="detail-label">Weight</span>
+                <strong className="detail-city">
                   {selectedShipment.weightKg} kg
                 </strong>
               </div>
 
-              <div>
-                <span>Delivery Deadline</span>
-
-                <strong>
-                  {formatDate(
-                    selectedShipment.deadline
-                  )}
+              <div className="detail-item">
+                <span className="detail-label">Delivery Deadline</span>
+                <strong className="detail-city">
+                  {formatDate(selectedShipment.deadline)}
                 </strong>
               </div>
 
-              <div>
-                <span>Delay Impact</span>
-
-                <strong>
-                  {formatMoney(
-                    selectedShipment.delayCostPerHour
-                  )}/hour
+              <div className="detail-item">
+                <span className="detail-label">Delay Impact</span>
+                <strong className="detail-city">
+                  {formatMoney(selectedShipment.delayCostPerHour)}/hour
                 </strong>
               </div>
 
-              {/* ====================================
-                  URGENCY ASSESSMENT
-                  ==================================== */}
-
+              {/* URGENCY ASSESSMENT */}
               <div className="form-wide urgency-detail-card">
-                <span>URGENCY ASSESSMENT</span>
+                <span className="urgency-card-title">URGENCY ASSESSMENT</span>
 
                 {selectedShipment.status === "cancelled" ? (
-                  <p>
+                  <p className="tracking-muted">
                     This shipment has been cancelled.
                   </p>
                 ) : (
                   <>
                     <div className="urgency-detail-head">
-
-                      <strong>
+                      <strong className="urgency-big-number">
                         {selectedShipment.urgency.score}/100
                       </strong>
-
                       <span
-                        className={
-                          `urgency-badge urgency-${selectedShipment.urgency.level.toLowerCase()}`
-                        }
+                        className={`urgency-badge urgency-${selectedShipment.urgency.level.toLowerCase()}`}
                       >
                         {selectedShipment.urgency.level}
                       </span>
-
                     </div>
-
-                    {/* URGENCY PROGRESS BAR */}
 
                     <div className="urgency-progress">
                       <div
+                        className="urgency-progress-bar"
                         style={{
-                          width:
-                            `${selectedShipment.urgency.score}%`,
+                          width: `${selectedShipment.urgency.score}%`,
                         }}
                       />
                     </div>
 
-                    {/* URGENCY BREAKDOWN */}
-
                     <div className="urgency-breakdown">
-
                       <p>
-                        <strong>
-                          Deadline:
-                        </strong>{" "}
-                        {
-                          selectedShipment.urgency.breakdown
-                            .deadlineScore
-                        }/100
+                        <strong>Deadline Score:</strong>{" "}
+                        {selectedShipment.urgency.breakdown.deadlineScore}/100
                       </p>
-
                       <p>
-                        <strong>
-                          Business impact:
-                        </strong>{" "}
-                        {
-                          selectedShipment.urgency.breakdown
-                            .impactScore
-                        }/100
+                        <strong>Business Impact:</strong>{" "}
+                        {selectedShipment.urgency.breakdown.impactScore}/100
                       </p>
-
                       <p>
-                        <strong>
-                          Cargo criticality:
-                        </strong>{" "}
-                        {
-                          selectedShipment.urgency.breakdown
-                            .cargoScore
-                        }/100
+                        <strong>Cargo Criticality:</strong>{" "}
+                        {selectedShipment.urgency.breakdown.cargoScore}/100
                       </p>
-
                       <p>
-                        <strong>
-                          Time remaining:
-                        </strong>{" "}
-                        {
-                          selectedShipment.urgency.breakdown
-                            .isOverdue
-                            ? "Deadline passed"
-                            : `${selectedShipment.urgency.breakdown.hoursRemaining} hours`
-                        }
+                        <strong>Time Remaining:</strong>{" "}
+                        {selectedShipment.urgency.breakdown.isOverdue
+                          ? "Deadline passed"
+                          : `${selectedShipment.urgency.breakdown.hoursRemaining} hours`}
                       </p>
-
                     </div>
 
                     <p className="urgency-explanation">
-                      The score combines deadline pressure,
-                      business impact, and cargo criticality.
-                      It is recalculated whenever shipment
+                      The score combines deadline pressure, business impact, and
+                      cargo criticality. It is recalculated whenever shipment
                       data is requested.
                     </p>
                   </>
@@ -877,48 +602,33 @@ export default function Shipments() {
               </div>
 
               {/* SPECIAL INSTRUCTIONS */}
-
-              <div className="form-wide">
-                <span>Special Instructions</span>
-
-                <p>
-                  {selectedShipment.notes || "None"}
-                </p>
+              <div className="form-wide special-notes-card">
+                <span className="detail-label">Special Instructions</span>
+                <p>{selectedShipment.notes || "None specified"}</p>
               </div>
-
             </div>
 
-            {/* ====================================
-                CONFIRMED BOOKING
-                ==================================== */}
-
+            {/* CONFIRMED BOOKING */}
             {selectedShipment.status === "booked" && (
-              <BookingSummary
-                shipmentId={selectedShipment.id}
-              />
-              
+              <BookingSummary shipmentId={selectedShipment.id} />
             )}
 
             {selectedShipment.status === "booked" && (
-  <ShipmentTracking
-    key={selectedShipment.id}
-    shipmentId={selectedShipment.id}
-  />
-)}
+              <ShipmentTracking
+                key={selectedShipment.id}
+                shipmentId={selectedShipment.id}
+              />
+            )}
 
-{selectedShipment.status === "booked" && (
-  <DispatcherAssignment
-    key={`dispatcher-${selectedShipment.id}`}
-    shipmentId={selectedShipment.id}
-  />
-)}
+            {selectedShipment.status === "booked" && (
+              <DispatcherAssignment
+                key={`dispatcher-${selectedShipment.id}`}
+                shipmentId={selectedShipment.id}
+              />
+            )}
 
-            {/* ====================================
-                MODAL ACTIONS
-                ==================================== */}
-
+            {/* MODAL ACTIONS */}
             <div className="shipment-form-actions">
-
               <button
                 type="button"
                 className="secondary-button"
@@ -931,54 +641,35 @@ export default function Shipments() {
                 <button
                   type="button"
                   className="danger-button"
-                  disabled={
-                    cancellingId === selectedShipment.id
-                  }
-                  onClick={() =>
-                    void handleCancel(
-                      selectedShipment
-                    )
-                  }
+                  disabled={cancellingId === selectedShipment.id}
+                  onClick={() => void handleCancel(selectedShipment)}
                 >
                   {cancellingId === selectedShipment.id
                     ? "Cancelling..."
                     : "Cancel Shipment"}
                 </button>
               )}
-
             </div>
-
           </section>
         </div>
       )}
 
-      {/* ====================================
-          CARRIER COMPARISON
-          ==================================== */}
-
+      {/* CARRIER COMPARISON */}
       {comparingShipment && (
         <CarrierComparison
           shipment={comparingShipment}
-          onClose={() =>
-            setComparingShipment(null)
-          }
+          onClose={() => setComparingShipment(null)}
         />
       )}
 
-      {/* ====================================
-          PRICING AND BOOKING
-          ==================================== */}
-
+      {/* PRICING AND BOOKING */}
       {pricingShipment && (
         <PricingBooking
           shipment={pricingShipment}
-          onClose={() =>
-            setPricingShipment(null)
-          }
+          onClose={() => setPricingShipment(null)}
           onBooked={load}
         />
       )}
-
-    </main>
+    </WorkspaceLayout>
   );
 }

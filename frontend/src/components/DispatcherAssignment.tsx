@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../lib/api";
+import { UserCheck, UserPlus, AlertTriangle, CheckCircle2, Mail, Shield } from "lucide-react";
 
 interface Dispatcher {
   id: string;
@@ -48,63 +49,96 @@ export default function DispatcherAssignment({
     setMessage("");
 
     try {
-      await apiRequest(
-        `/recovery/${shipmentId}/dispatchers`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            dispatcherEmail: email.trim(),
-          }),
-        }
-      );
+      await apiRequest(`/recovery/${shipmentId}/dispatchers`, {
+        method: "POST",
+        body: JSON.stringify({
+          dispatcherEmail: email.trim(),
+        }),
+      });
 
       setMessage("Dispatcher assigned.");
       setEmail("");
       setRefresh((value) => value + 1);
     } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Assignment failed"
-      );
+      setMessage(err instanceof Error ? err.message : "Assignment failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className="tracking-simulator">
-      <h4>Recovery Dispatcher</h4>
+    <section className="dispatcher-assignment-card" aria-labelledby="dispatcher-assign-title">
+      <div className="dispatcher-assign-head">
+        <Shield size={18} />
+        <h4 id="dispatcher-assign-title">Recovery Dispatcher Assignment</h4>
+      </div>
 
-      <form onSubmit={assign}>
-        <label>
-          Dispatcher email
+      <p className="tracking-muted dispatcher-assign-sub">
+        Authorize a qualified dispatcher to coordinate re-routing, transit
+        handoffs, and exception recovery for this shipment.
+      </p>
+
+      <form className="dispatcher-assign-form" onSubmit={assign}>
+        <div className="dispatcher-input-group">
+          <Mail size={16} className="dispatcher-mail-icon" />
           <input
             type="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="dispatcher@swiftchain.test"
+            disabled={busy}
+            aria-label="Dispatcher email"
           />
-        </label>
+        </div>
 
         <button
           type="submit"
-          className="secondary-button"
+          className="secondary-button dispatcher-submit-btn"
           disabled={busy}
         >
-          {busy ? "Assigning..." : "Assign dispatcher"}
+          <UserPlus size={15} />
+          <span>{busy ? "Assigning..." : "Assign Dispatcher"}</span>
         </button>
       </form>
 
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <div
+          className={`form-alert ${
+            message.toLowerCase().includes("assigned")
+              ? "form-alert-success"
+              : ""
+          }`}
+          role="status"
+        >
+          {message.toLowerCase().includes("assigned") ? (
+            <CheckCircle2 size={15} />
+          ) : (
+            <AlertTriangle size={15} />
+          )}
+          <span>{message}</span>
+        </div>
+      )}
 
-      <ul>
-        {dispatchers.map((dispatcher) => (
-          <li key={dispatcher.id}>
-            {dispatcher.fullName} — {dispatcher.email}
-            {!dispatcher.isActive && " (inactive)"}
-          </li>
-        ))}
-      </ul>
+      {dispatchers.length > 0 && (
+        <div className="assigned-dispatchers-list">
+          <span className="dispatchers-list-title">Assigned Dispatchers:</span>
+          <div className="dispatchers-tags-grid">
+            {dispatchers.map((dispatcher) => (
+              <div key={dispatcher.id} className="dispatcher-chip">
+                <UserCheck size={14} className="chip-icon" />
+                <div className="chip-text">
+                  <strong className="chip-name">{dispatcher.fullName}</strong>
+                  <span className="chip-email">{dispatcher.email}</span>
+                </div>
+                {!dispatcher.isActive && (
+                  <span className="chip-inactive-tag">Inactive</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

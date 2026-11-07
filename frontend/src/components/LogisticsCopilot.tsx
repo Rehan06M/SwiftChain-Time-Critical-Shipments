@@ -3,8 +3,19 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { apiRequest } from "../lib/api";
+import {
+  Sparkles,
+  MessageSquare,
+  HelpCircle,
+  AlertTriangle,
+  RotateCcw,
+  Clock,
+  Shield,
+  Layers,
+} from "lucide-react";
 
 interface Props {
   shipmentId?: string;
@@ -36,7 +47,7 @@ interface CopilotResponse {
   scope: string;
   shipments: CopilotShipment[];
   aiSummary: string | null;
-aiUnavailable: string | null;
+  aiUnavailable: string | null;
 }
 
 const suggestions = [
@@ -48,7 +59,180 @@ const suggestions = [
 ];
 
 const date = (value: string) =>
-  new Date(value).toLocaleString("en-IN");
+  new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+function renderInline(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+function FormattedCopilotContent({ content }: { content: string }) {
+  // Normalize markdown formatting that might be compressed onto single lines
+  let text = content.replace(/\r\n/g, "\n");
+  text = text.replace(/:\*\*\s*\|/g, ":**\n\n|");
+  text = text.replace(/\|\s*\|\s*/g, "|\n|");
+  text = text.replace(/\|\s*-\s*([A-Za-z0-9])/g, "|\n\n- $1");
+  text = text.replace(/([.!?])\s*-\s*([A-Za-z0-9])/g, "$1\n\n- $2");
+  text = text.replace(/([.!?])\s+([*-])\s+/g, "$1\n\n$2 ");
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const blocks: Array<
+    | { type: "paragraph"; text: string }
+    | { type: "table"; headers: string[]; rows: string[][] }
+    | { type: "list"; items: string[] }
+  > = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Check if table row (starts and ends with pipe or has multiple pipes)
+    if (line.startsWith("|") && (line.endsWith("|") || line.includes("|"))) {
+      const tableLines: string[] = [];
+      while (
+        i < lines.length &&
+        lines[i].startsWith("|") &&
+        (lines[i].endsWith("|") || lines[i].includes("|"))
+      ) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+
+      if (tableLines.length >= 2) {
+        // Headers from first line
+        const headers = tableLines[0]
+          .split("|")
+          .map((c) => c.trim())
+          .filter(Boolean);
+
+        // Check for separator line e.g. |---|---|
+        const hasSep = /^\|[\s-:]+\|/.test(tableLines[1]);
+        const dataLines = hasSep ? tableLines.slice(2) : tableLines.slice(1);
+
+        const rows = dataLines.map((rowLine) => {
+          const cells = rowLine.split("|").map((c) => c.trim());
+          if (
+            cells.length > 2 &&
+            cells[0] === "" &&
+            cells[cells.length - 1] === ""
+          ) {
+            return cells.slice(1, -1);
+          }
+          return cells.filter((c, idx) => {
+            if (idx === 0 && c === "") return false;
+            return true;
+          });
+        });
+
+        blocks.push({ type: "table", headers, rows });
+        continue;
+      } else {
+        blocks.push({ type: "paragraph", text: tableLines[0] });
+        continue;
+      }
+    }
+
+    // Check if list item
+    if (line.startsWith("- ") || line.startsWith("* ")) {
+      const items: string[] = [];
+      while (
+        i < lines.length &&
+        (lines[i].startsWith("- ") || lines[i].startsWith("* "))
+      ) {
+        items.push(lines[i].slice(2).trim());
+        i++;
+      }
+      blocks.push({ type: "list", items });
+      continue;
+    }
+
+    // Normal paragraph
+    blocks.push({ type: "paragraph", text: line });
+    i++;
+  }
+
+  return (
+    <div className="copilot-ai-body">
+      {blocks.map((block, idx) => {
+        if (block.type === "paragraph") {
+          return (
+            <p key={idx} className="copilot-ai-paragraph">
+              {renderInline(block.text)}
+            </p>
+          );
+        }
+
+        if (block.type === "table") {
+          return (
+            <div key={idx} className="copilot-ai-table-wrap">
+              <table className="copilot-ai-table">
+                <thead>
+                  <tr>
+                    {block.headers.map((h, hIdx) => (
+                      <th key={hIdx}>{renderInline(h)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {row.map((cell, cIdx) => {
+                        const isRisk =
+                          cell.includes("Delayed") ||
+                          cell.includes("Critical") ||
+                          cell.includes("At Risk");
+                        const isDelivered = cell.includes("Delivered");
+                        const isMoney = cell.includes("₹");
+
+                        return (
+                          <td
+                            key={cIdx}
+                            className={
+                              isRisk
+                                ? "cell-risk"
+                                : isDelivered
+                                ? "cell-delivered"
+                                : isMoney
+                                ? "cell-money"
+                                : ""
+                            }
+                          >
+                            {renderInline(cell)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        if (block.type === "list") {
+          return (
+            <ul key={idx} className="copilot-ai-list">
+              {block.items.map((item, lIdx) => (
+                <li key={lIdx}>{renderInline(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        return null;
+      })}
+    </div>
+  );
+}
 
 export default function LogisticsCopilot({
   shipmentId,
@@ -58,8 +242,7 @@ export default function LogisticsCopilot({
   const [result, setResult] = useState<CopilotResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [conversation, setConversation] =
-  useState<CopilotTurn[]>([]);
+  const [conversation, setConversation] = useState<CopilotTurn[]>([]);
 
   const requestRef = useRef<AbortController | null>(null);
 
@@ -71,7 +254,7 @@ export default function LogisticsCopilot({
     const value = input.trim();
 
     if (value.length < 3 || value.length > 500) {
-      setError("Enter a question of 3–500 characters.");
+      setError("Enter a question between 3 and 500 characters.");
       return;
     }
 
@@ -86,40 +269,36 @@ export default function LogisticsCopilot({
     setResult(null);
 
     try {
-      const response = await apiRequest<CopilotResponse>(
-        "/workspace/copilot",
-        {
-          method: "POST",
-          signal: controller.signal,
-          body: JSON.stringify({
-  question: value,
-  shipmentId,
-
-  history: conversation.slice(-6).map((turn) => ({
-    role: turn.role,
-    content: turn.content.slice(0, 800),
-  })),
-}),
-        }
-      );
+      const response = await apiRequest<CopilotResponse>("/workspace/copilot", {
+        method: "POST",
+        signal: controller.signal,
+        body: JSON.stringify({
+          question: value,
+          shipmentId,
+          history: conversation.slice(-6).map((turn) => ({
+            role: turn.role,
+            content: turn.content.slice(0, 800),
+          })),
+        }),
+      });
 
       if (!controller.signal.aborted) {
-  setResult(response);
+        setResult(response);
 
-  const userTurn: CopilotTurn = {
-    role: "user",
-    content: value,
-  };
+        const userTurn: CopilotTurn = {
+          role: "user",
+          content: value,
+        };
 
-  const assistantTurn: CopilotTurn = {
-    role: "assistant",
-    content: response.aiSummary ?? response.answer,
-  };
+        const assistantTurn: CopilotTurn = {
+          role: "assistant",
+          content: response.aiSummary ?? response.answer,
+        };
 
-  setConversation((previous) =>
-    [...previous, userTurn, assistantTurn].slice(-8)
-  );
-}
+        setConversation((previous) =>
+          [...previous, userTurn, assistantTurn].slice(-8)
+        );
+      }
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(
@@ -131,7 +310,6 @@ export default function LogisticsCopilot({
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;
-
         if (!controller.signal.aborted) {
           setBusy(false);
         }
@@ -149,182 +327,258 @@ export default function LogisticsCopilot({
       className="role-dashboard-card logistics-copilot"
       aria-labelledby="logistics-copilot-title"
     >
-      <span className="section-eyebrow eyebrow-dark">
-        SWIFTCHAIN ASSISTANT
-      </span>
+      <div className="copilot-header">
+        <div className="copilot-title-group">
+          <div className="copilot-badge-row">
+            <span className="section-eyebrow eyebrow-dark">
+              SWIFTCHAIN INTELLIGENCE
+            </span>
+            <span
+              className={`copilot-scope-pill ${
+                shipmentId ? "scope-shipment" : "scope-workspace"
+              }`}
+            >
+              <Layers size={13} />
+              <span>
+                {shipmentId
+                  ? `Focus: ${shipmentLabel ?? "Selected Shipment"}`
+                  : "Scope: Authorized Workspace"}
+              </span>
+            </span>
+          </div>
 
-      <h2 id="logistics-copilot-title">Logistics copilot</h2>
+          <h2 id="logistics-copilot-title">Logistics Copilot</h2>
+          <p className="tracking-muted">
+            {shipmentId
+              ? `Focused on ${shipmentLabel ?? "selected shipment"}. Close shipment details to query across all workspace shipments.`
+              : "Query shipment deadlines, delays, financial impact, and recovery options."}
+          </p>
+        </div>
 
-      <p className="tracking-muted">
-        {shipmentId
-          ? `Scope: ${shipmentLabel ?? "selected shipment"}. Close shipment details to ask about your workspace.`
-          : "Scope: your authorized workspace shipments."}
-      </p>
-
-      <p className="tracking-muted">
-  Shipment facts come from your authorized records.
-  Groq explains the displayed shipments and supports follow-up
-  questions. Check important details against the supporting cards.
-</p>
-
-      <div className="copilot-suggestions">
-        {suggestions.map((suggestion) => (
+        {conversation.length > 0 && (
           <button
-            key={suggestion}
             type="button"
-            className="secondary-button"
+            className="secondary-button btn-clear-convo"
             disabled={busy}
-            onClick={() => void ask(suggestion)}
+            onClick={() => {
+              setConversation([]);
+              setResult(null);
+              setQuestion("");
+              setError("");
+            }}
           >
-            {suggestion}
+            <RotateCcw size={14} />
+            <span>Clear Thread</span>
           </button>
-        ))}
+        )}
       </div>
 
-
-       {conversation.length > 2 && (
-  <details className="copilot-history">
-    <summary>Previous questions and answers</summary>
-
-    {conversation.slice(0, -2).map((turn, index) => (
-      <div key={index} className="copilot-history-turn">
-        <strong>
-          {turn.role === "user" ? "You" : "Copilot"}
-        </strong>
-        <p>{turn.content}</p>
+      {/* Suggested Question Pills */}
+      <div className="copilot-suggestions-bar">
+        <span className="suggestions-label">
+          <HelpCircle size={14} />
+          <span>Suggested:</span>
+        </span>
+        <div className="suggestions-list">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              className="secondary-button btn-suggestion"
+              disabled={busy}
+              onClick={() => void ask(suggestion)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       </div>
-    ))}
-  </details>
-)}
 
-{conversation.length > 0 && (
-  <button
-    type="button"
-    className="secondary-button"
-    disabled={busy}
-    onClick={() => {
-      setConversation([]);
-      setResult(null);
-      setQuestion("");
-      setError("");
-    }}
-  >
-    Clear conversation
-  </button>
-)}
+      {/* Conversation Thread History */}
+      {conversation.length > 2 && (
+        <details className="copilot-history">
+          <summary>
+            <MessageSquare size={14} />
+            <span>Previous questions and answers ({conversation.length / 2})</span>
+          </summary>
+          <div className="copilot-history-turns">
+            {conversation.slice(0, -2).map((turn, index) => (
+              <div
+                key={index}
+                className={`copilot-history-turn turn-${turn.role}`}
+              >
+                <strong className="turn-author">
+                  {turn.role === "user" ? "You" : "SwiftChain Logistics Copilot"}
+                </strong>
+                {turn.role === "user" ? (
+                  <p className="turn-content">{turn.content}</p>
+                ) : (
+                  <FormattedCopilotContent content={turn.content} />
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
+      {/* Question Form */}
       <form className="copilot-form" onSubmit={submit}>
-        <label htmlFor="copilot-question">
-          Ask about shipment status, risk, cost or recovery
-        </label>
+        <div className="copilot-input-wrap">
+          <textarea
+            id="copilot-question"
+            aria-label="Ask about shipment status, risk, cost, or recovery"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            minLength={3}
+            maxLength={500}
+            required
+            rows={3}
+            placeholder="Ask anything about current shipment risk, ETA calculations, or financial exposure..."
+            disabled={busy}
+          />
+        </div>
 
-        <textarea
-          id="copilot-question"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          minLength={3}
-          maxLength={500}
-          required
-          rows={3}
-          placeholder="Which shipments need attention?"
-          disabled={busy}
-        />
+        <div className="copilot-form-footer">
+          <span className="copilot-input-count">
+            {question.length}/500 chars
+          </span>
 
-        <button
-          type="submit"
-          className="primary-button"
-          disabled={busy || question.trim().length < 3}
-        >
-          {busy ? "Checking shipment records..." : "Ask copilot"}
-        </button>
+          <button
+            type="submit"
+            className="primary-button copilot-ask-btn"
+            disabled={busy || question.trim().length < 3}
+          >
+            <Sparkles size={16} />
+            <span>{busy ? "Analyzing records..." : "Ask Copilot"}</span>
+          </button>
+        </div>
       </form>
 
       {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
+        <div className="form-alert" role="alert">
+          <AlertTriangle size={16} />
+          <span>{error}</span>
+        </div>
       )}
 
+      {/* Copilot Result Block */}
       {result && (
         <div className="copilot-response" aria-live="polite">
+          {/* AI Explanation via SwiftChain Logistics Copilot */}
+          {result.aiSummary && (
+            <div className="copilot-ai-summary">
+              <div className="ai-summary-head">
+                <div className="ai-summary-title-row">
+                  <Sparkles size={18} className="ai-sparkle-icon" />
+                  <strong>SwiftChain Logistics Copilot</strong>
+                </div>
+                <span className="ai-copilot-tag">AI Analysis</span>
+              </div>
+              <FormattedCopilotContent content={result.aiSummary} />
+            </div>
+          )}
+
+          {/* AI Fallback Notice */}
+          {result.aiUnavailable && (
+            <div className="form-alert ai-fallback-alert" role="status">
+              <AlertTriangle size={16} />
+              <span>
+                {result.aiUnavailable} Deterministic shipment records and
+                supporting evidence cards are provided below.
+              </span>
+            </div>
+          )}
+
+          {/* Deterministic Facts */}
           <div className="copilot-facts">
-  <strong>Shipment facts</strong>
-  <p>{result.answer}</p>
-</div>
-
-{result.aiSummary && (
-  <div className="copilot-ai-summary">
-    <strong>AI explanation · Groq</strong>
-
-    <p className="copilot-ai-text">
-      {result.aiSummary}
-    </p>
-  </div>
-)}
-
-{result.aiUnavailable && (
-  <p className="form-alert" role="status">
-    {result.aiUnavailable}
-    {" "}The shipment facts and supporting cards are still shown.
-  </p>
-)}
-
-          <p className="tracking-muted">
-            {result.scope} Checked {date(result.generatedAt)}.
-            Up to 10 supporting shipments are shown.
-          </p>
-
-          <div className="copilot-evidence">
-            {result.shipments.map((shipment) => (
-              <article key={shipment.id}>
-                <h3>{shipment.trackingCode}</h3>
-
-                <p>
-                  {shipment.route}
-                  {" · "}
-                  {shipment.trackingStatus.replaceAll("_", " ")}
-                </p>
-
-                <p>
-                  Carrier: {shipment.carrierName ?? "Not booked"}
-                </p>
-
-                <p>Deadline: {date(shipment.deadline)}</p>
-
-                {shipment.estimatedArrival && (
-                  <p>
-                    Assessed arrival: {date(shipment.estimatedArrival)}
-                  </p>
-                )}
-
-                <ul>
-                  {shipment.reasons.map((reason, index) => (
-                    <li key={index}>{reason}</li>
-                  ))}
-                </ul>
-
-                {shipment.evaluatedAt && (
-                  <p className="tracking-muted">
-                    Last SLA assessment: {date(shipment.evaluatedAt)}
-                  </p>
-                )}
-
-                {shipment.recoveryLabel && (
-                  <p>
-                    Approved route: {shipment.recoveryLabel}
-                  </p>
-                )}
-
-                {shipment.savedProposalCount > 0 && (
-                  <p>
-                    Saved pending recovery proposals:{" "}
-                    {shipment.savedProposalCount}.
-                    Revalidate in the recovery workflow.
-                  </p>
-                )}
-              </article>
-            ))}
+            <div className="facts-head">
+              <Shield size={16} />
+              <strong>Verified Shipment Records</strong>
+            </div>
+            <p className="facts-text">{result.answer}</p>
           </div>
+
+          <div className="copilot-meta-row">
+            <Clock size={13} />
+            <span>
+              {result.scope} · Evaluated at {date(result.generatedAt)}. Showing up
+              to 10 supporting shipments.
+            </span>
+          </div>
+
+          {/* Supporting Evidence Cards */}
+          {result.shipments.length > 0 && (
+            <div className="copilot-evidence">
+              <div className="evidence-title">
+                <h4>Supporting Shipment Records ({result.shipments.length})</h4>
+              </div>
+
+              <div className="evidence-cards-grid">
+                {result.shipments.map((shipment) => (
+                  <article key={shipment.id} className="evidence-card">
+                    <div className="evidence-card-head">
+                      <strong className="evidence-code">
+                        {shipment.trackingCode}
+                      </strong>
+                      <span className="badge badge-progress">
+                        {shipment.trackingStatus.replaceAll("_", " ")}
+                      </span>
+                    </div>
+
+                    <div className="evidence-route">
+                      <span>{shipment.route}</span>
+                    </div>
+
+                    <div className="evidence-meta-list">
+                      <div className="ev-meta">
+                        <span>Carrier:</span>
+                        <strong>{shipment.carrierName ?? "Not booked"}</strong>
+                      </div>
+                      <div className="ev-meta">
+                        <span>Deadline:</span>
+                        <strong>{date(shipment.deadline)}</strong>
+                      </div>
+                      {shipment.estimatedArrival && (
+                        <div className="ev-meta">
+                          <span>Assessed Arrival:</span>
+                          <strong>{date(shipment.estimatedArrival)}</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    {shipment.reasons.length > 0 && (
+                      <ul className="evidence-reasons">
+                        {shipment.reasons.map((reason, index) => (
+                          <li key={index}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {shipment.evaluatedAt && (
+                      <small className="tracking-muted evidence-timestamp">
+                        Last SLA check: {date(shipment.evaluatedAt)}
+                      </small>
+                    )}
+
+                    {shipment.recoveryLabel && (
+                      <div className="evidence-recovery-tag">
+                        <span>Approved Route: {shipment.recoveryLabel}</span>
+                      </div>
+                    )}
+
+                    {shipment.savedProposalCount > 0 && (
+                      <div className="evidence-proposals-tag">
+                        <span>
+                          Pending Recovery Proposals:{" "}
+                          {shipment.savedProposalCount}
+                        </span>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../lib/api";
+import {
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Clock,
+  Info,
+} from "lucide-react";
 
 interface ShipmentAlert {
   id: string;
   shipmentId: string;
   trackingCode: string;
-  riskStatus:
-    | "On Track"
-    | "At Risk"
-    | "Critical Risk"
-    | "Delayed";
+  riskStatus: "On Track" | "At Risk" | "Critical Risk" | "Delayed";
   title: string;
   message: string;
   createdAt: string;
@@ -36,13 +40,10 @@ export default function ShipmentAlerts() {
       pending = true;
 
       try {
-        const result = await apiRequest<AlertResponse>(
-          "/alerts",
-          {
-            cache: "no-store",
-            signal: controller.signal,
-          }
-        );
+        const result = await apiRequest<AlertResponse>("/alerts", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
 
         if (!controller.signal.aborted) {
           setData(result);
@@ -93,97 +94,121 @@ export default function ShipmentAlerts() {
     }
   }
 
-  return (
-    <section className="shipment-alerts">
-      <div className="tracking-heading">
-        <div>
-          <h2>SLA Alerts</h2>
+  const unreadCount = data?.unreadCount ?? 0;
 
-          <p aria-live="polite">
-            {data
-              ? `${data.unreadCount} unread notifications`
-              : "Loading notifications..."}
-          </p>
+  return (
+    <section className="shipment-alerts-card" aria-labelledby="alerts-card-title">
+      <div className="alerts-card-header">
+        <div className="alerts-title-wrap">
+          <div className="alerts-bell-icon">
+            <Bell size={18} />
+            {unreadCount > 0 && <span className="alerts-unread-dot" />}
+          </div>
+          <div>
+            <h2 id="alerts-card-title">SLA Risk Alerts</h2>
+            <p className="tracking-muted" aria-live="polite">
+              {data
+                ? `${data.unreadCount} unread notification${data.unreadCount === 1 ? "" : "s"}`
+                : "Loading alerts..."}
+            </p>
+          </div>
         </div>
 
         <button
           type="button"
-          className="secondary-button"
-          onClick={() =>
-            setRefreshKey((value) => value + 1)
-          }
+          className="secondary-button alerts-refresh-btn"
+          onClick={() => setRefreshKey((value) => value + 1)}
+          title="Refresh alerts"
         >
-          Refresh
+          <RefreshCw size={14} />
+          <span>Refresh</span>
         </button>
       </div>
 
       {error && (
         <div className="form-alert" role="alert">
-          {error}
+          <AlertTriangle size={16} />
+          <span>{error}</span>
         </div>
       )}
 
-      {data?.alerts.length === 0 && (
-        <p className="tracking-muted">
-          No alerts yet. Risk changes and recoveries will
-          appear here.
-        </p>
+      {data?.alerts.length === 0 ? (
+        <div className="alerts-empty-state">
+          <CheckCircle2 size={28} />
+          <p>All shipments are operating within SLA tolerances.</p>
+          <small className="tracking-muted">
+            New risk updates and recovery events will automatically appear here.
+          </small>
+        </div>
+      ) : (
+        <ul className="shipment-alert-list">
+          {data?.alerts.map((alert) => {
+            const riskClass = alert.riskStatus
+              .toLowerCase()
+              .replaceAll(" ", "-");
+            const isRead = Boolean(alert.readAt);
+
+            return (
+              <li
+                key={alert.id}
+                className={`alert-item ${isRead ? "is-read" : "is-unread"}`}
+              >
+                <div className="alert-item-top">
+                  <div className="alert-item-title-group">
+                    {!isRead && <span className="alert-dot" />}
+                    <strong className="alert-item-title">{alert.title}</strong>
+                    <span className="alert-code-ref">
+                      Shipment: <strong>{alert.trackingCode}</strong>
+                    </span>
+                  </div>
+
+                  <span className={`badge badge-risk risk-${riskClass}`}>
+                    {alert.riskStatus}
+                  </span>
+                </div>
+
+                <p className="alert-item-msg">{alert.message}</p>
+
+                <div className="alert-item-footer">
+                  <div className="alert-time-wrap">
+                    <Clock size={13} />
+                    <span>
+                      {new Date(alert.createdAt).toLocaleString("en-IN", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}{" "}
+                      · {isRead ? "Read" : "Unread"}
+                    </span>
+                  </div>
+
+                  {!isRead && (
+                    <button
+                      type="button"
+                      className="secondary-button btn-mark-read"
+                      disabled={busyId === alert.id}
+                      onClick={() => void markRead(alert.id)}
+                    >
+                      <CheckCircle2 size={13} />
+                      <span>
+                        {busyId === alert.id ? "Saving..." : "Mark as read"}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      <ul className="shipment-alert-list">
-        {data?.alerts.map((alert) => (
-          <li
-            key={alert.id}
-            className={
-              alert.readAt ? "is-read" : "is-unread"
-            }
-          >
-            <div className="tracking-heading">
-              <strong>{alert.title}</strong>
-
-              <span
-                className={`sla-risk sla-risk-${alert.riskStatus
-                  .toLowerCase()
-                  .replaceAll(" ", "-")}`}
-              >
-                {alert.riskStatus}
-              </span>
-            </div>
-
-            <p>{alert.message}</p>
-
-            <div className="tracking-heading">
-              <small>
-                {new Date(alert.createdAt).toLocaleString(
-                  "en-IN"
-                )}
-                {" · "}
-                {alert.readAt ? "Read" : "Unread"}
-              </small>
-
-              {!alert.readAt && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busyId === alert.id}
-                  onClick={() => void markRead(alert.id)}
-                >
-                  {busyId === alert.id
-                    ? "Saving..."
-                    : "Mark as read"}
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-
       {data && data.alerts.length > 0 && (
-        <p className="tracking-muted">
-          Showing the latest 50 notifications. Alerts are
-          historical; check the shipment’s ETA panel for
-          its current risk.
-        </p>
+        <div className="alerts-footer-note">
+          <Info size={13} />
+          <span>
+            Showing latest 50 notifications. Notifications reflect point-in-time
+            events; check the shipment details panel for live telemetry and ETA.
+          </span>
+        </div>
       )}
     </section>
   );

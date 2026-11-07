@@ -1,7 +1,7 @@
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { ArrowRight, LockKeyhole, Mail, Truck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Truck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -10,8 +10,12 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedDemoRole, setSelectedDemoRole] = useState<
+    "dispatcher" | "carrier" | null
+  >(null);
 
   if (loading) {
     return <div className="loading-screen">Loading...</div>;
@@ -19,6 +23,19 @@ export default function Login() {
 
   if (user) {
     return <Navigate to={`/dashboard/${user.role}`} replace />;
+  }
+
+  function handleSelectDemo(role: "dispatcher" | "carrier") {
+    if (submitting) return;
+    setSelectedDemoRole(role);
+    setError("");
+    if (role === "dispatcher") {
+      setEmail("dispatcher@swiftchain.test");
+      setPassword("12345678987654321");
+    } else {
+      setEmail("carrier@swiftchain.test");
+      setPassword("12345678987654321");
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -90,24 +107,83 @@ export default function Login() {
                 type="email"
                 placeholder="you@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (
+                    selectedDemoRole &&
+                    e.target.value !==
+                      (selectedDemoRole === "dispatcher"
+                        ? "dispatcher@swiftchain.test"
+                        : "carrier@swiftchain.test")
+                  ) {
+                    setSelectedDemoRole(null);
+                  }
+                }}
                 autoComplete="email"
                 required
               />
             </div>
 
             <label htmlFor="password">Password</label>
-            <div className="input-wrap">
+            <div className="input-wrap password-wrap">
               <LockKeyhole size={18} />
               <input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (
+                    selectedDemoRole &&
+                    e.target.value !== "12345678987654321"
+                  ) {
+                    setSelectedDemoRole(null);
+                  }
+                }}
                 autoComplete="current-password"
                 required
               />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={0}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            {/* Try a demo account area */}
+            <div className="demo-credentials-area">
+              <div className="demo-credentials-label">
+                <span>Try a demo account</span>
+              </div>
+              <div className="demo-credentials-grid">
+                <button
+                  type="button"
+                  className={`demo-credential-btn ${
+                    selectedDemoRole === "dispatcher" ? "is-selected" : ""
+                  }`}
+                  onClick={() => handleSelectDemo("dispatcher")}
+                  disabled={submitting}
+                >
+                  <span className="demo-role-tag">Demo Dispatcher</span>
+                  <span className="demo-email-tag">dispatcher@swiftchain.test</span>
+                </button>
+                <button
+                  type="button"
+                  className={`demo-credential-btn ${
+                    selectedDemoRole === "carrier" ? "is-selected" : ""
+                  }`}
+                  onClick={() => handleSelectDemo("carrier")}
+                  disabled={submitting}
+                >
+                  <span className="demo-role-tag">Demo Carrier</span>
+                  <span className="demo-email-tag">carrier@swiftchain.test</span>
+                </button>
+              </div>
             </div>
 
             <button

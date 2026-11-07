@@ -5,6 +5,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import {
+  Sliders,
+  Play,
+  AlertTriangle,
+} from "lucide-react";
 
 interface Comparison {
   estimatedArrival: string;
@@ -40,7 +45,10 @@ const money = (value: number) =>
   }).format(value);
 
 const date = (value: string) =>
-  new Date(value).toLocaleString("en-IN");
+  new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
 export default function WhatIfSimulator({
   shipmentId,
@@ -58,16 +66,16 @@ export default function WhatIfSimulator({
 
   const requestController = useRef<AbortController | null>(null);
 
-useEffect(() => {
-  return () => requestController.current?.abort();
-}, []);
+  useEffect(() => {
+    return () => requestController.current?.abort();
+  }, []);
 
   async function run(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     requestController.current?.abort();
 
-const controller = new AbortController();
-requestController.current = controller;
+    const controller = new AbortController();
+    requestController.current = controller;
     setBusy(true);
     setError("");
     setResult(null);
@@ -124,27 +132,27 @@ requestController.current = controller;
           date(result.scenario.deadline),
         ],
         [
-          "Risk",
+          "Risk Status",
           result.baseline.riskStatus,
           result.scenario.riskStatus,
         ],
         [
-          "Remaining time",
+          "Remaining Time",
           `${Math.ceil(result.baseline.remainingMinutes)} min`,
           `${Math.ceil(result.scenario.remainingMinutes)} min`,
         ],
         [
-          "Deadline buffer",
+          "Deadline Buffer",
           `${Math.round(result.baseline.slackMinutes)} min`,
           `${Math.round(result.scenario.slackMinutes)} min`,
         ],
         [
-          "Predicted late by",
+          "Predicted Lateness",
           `${Math.ceil(result.baseline.lateByMinutes)} min`,
           `${Math.ceil(result.scenario.lateByMinutes)} min`,
         ],
         [
-          "Delay exposure",
+          "Delay Exposure",
           money(result.baseline.delayExposureInr),
           money(result.scenario.delayExposureInr),
         ],
@@ -152,191 +160,212 @@ requestController.current = controller;
     : [];
 
   return (
-    <section className="what-if-panel">
-      <div className="role-dashboard-toolbar">
-        <div>
-          <h3>What-If Logistics Simulator</h3>
-          <p className="tracking-muted">
-            Preview only. No shipment, deadline, booking or alert is changed.
-          </p>
+    <section className="what-if-panel" aria-labelledby="what-if-heading">
+      <div className="what-if-header">
+        <div className="what-if-title-wrap">
+          <Sliders size={18} />
+          <div>
+            <h3 id="what-if-heading">What-If Logistics Simulator</h3>
+            <p className="tracking-muted">
+              Hypothetical scenario preview only. Does not alter actual booking,
+              deadlines, or carrier routes.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="tracking-actions">
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() => preset("1", "60", "0")}
-        >
-          Demo: 60-minute delay
-        </button>
-
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() => preset("0.75", "0", "0")}
-        >
-          Demo: 25% slower travel
-        </button>
-
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() => preset("1.5", "0", "1500")}
-        >
-          Demo: faster travel, +₹1,500
-        </button>
-
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={busy}
-          onClick={() => preset("1", "0", "0")}
-        >
-          Reset assumptions
-        </button>
+      {/* Preset Action Pills */}
+      <div className="what-if-presets-bar">
+        <span className="presets-tag">Demo Scenarios:</span>
+        <div className="presets-list">
+          <button
+            type="button"
+            className="secondary-button btn-preset"
+            disabled={busy}
+            onClick={() => preset("1", "60", "0")}
+          >
+            +60m Delay
+          </button>
+          <button
+            type="button"
+            className="secondary-button btn-preset"
+            disabled={busy}
+            onClick={() => preset("0.75", "0", "0")}
+          >
+            25% Slower
+          </button>
+          <button
+            type="button"
+            className="secondary-button btn-preset"
+            disabled={busy}
+            onClick={() => preset("1.5", "0", "1500")}
+          >
+            Faster (+₹1,500)
+          </button>
+          <button
+            type="button"
+            className="secondary-button btn-preset"
+            disabled={busy}
+            onClick={() => preset("1", "0", "0")}
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
+      {/* Form Controls */}
       <form className="what-if-form" onSubmit={run}>
-        <label>
-          Travel speed multiplier
-          <input
-            type="number"
-            min="0.25"
-            max="2"
-            step="0.05"
-            required
-            disabled={busy}
-            value={speedFactor}
-            onChange={(event) => {
-              setSpeedFactor(event.target.value);
-              setResult(null);
-            }}
-          />
-          <small>1 = unchanged, 0.75 = slower, 1.5 = faster</small>
-        </label>
+        <div className="what-if-form-grid">
+          <label>
+            <span className="input-label">Travel Speed Multiplier</span>
+            <input
+              type="number"
+              min="0.25"
+              max="2"
+              step="0.05"
+              required
+              disabled={busy}
+              value={speedFactor}
+              onChange={(event) => {
+                setSpeedFactor(event.target.value);
+                setResult(null);
+              }}
+            />
+            <small className="input-hint">1.0 = base, 0.75 = slow, 1.5 = expedited</small>
+          </label>
 
-        <label>
-          Additional delay — minutes
-          <input
-            type="number"
-            min="0"
-            max="1440"
-            step="1"
-            required
-            disabled={busy}
-            value={extraDelay}
-            onChange={(event) => {
-              setExtraDelay(event.target.value);
-              setResult(null);
-            }}
-          />
-        </label>
+          <label>
+            <span className="input-label">Additional Delay (Minutes)</span>
+            <input
+              type="number"
+              min="0"
+              max="1440"
+              step="1"
+              required
+              disabled={busy}
+              value={extraDelay}
+              onChange={(event) => {
+                setExtraDelay(event.target.value);
+                setResult(null);
+              }}
+            />
+            <small className="input-hint">Transit congestion or inspection</small>
+          </label>
 
-        <label>
-          Hypothetical deadline shift — minutes
-          <input
-            type="number"
-            min="-1440"
-            max="10080"
-            step="1"
-            required
-            disabled={busy}
-            value={deadlineShift}
-            onChange={(event) => {
-              setDeadlineShift(event.target.value);
-              setResult(null);
-            }}
-          />
-          <small>Positive extends; negative tightens the deadline</small>
-        </label>
+          <label>
+            <span className="input-label">Hypothetical Deadline Shift (Minutes)</span>
+            <input
+              type="number"
+              min="-1440"
+              max="10080"
+              step="1"
+              required
+              disabled={busy}
+              value={deadlineShift}
+              onChange={(event) => {
+                setDeadlineShift(event.target.value);
+                setResult(null);
+              }}
+            />
+            <small className="input-hint">+ extends SLA; - tightens deadline</small>
+          </label>
 
-        <label>
-          Hypothetical additional cost — INR
-          <input
-            type="number"
-            min="0"
-            max="10000000"
-            step="0.01"
-            required
-            disabled={busy}
-            value={additionalCost}
-            onChange={(event) => {
-              setAdditionalCost(event.target.value);
-              setResult(null);
-            }}
-          />
-        </label>
+          <label>
+            <span className="input-label">Hypothetical Additional Cost (INR)</span>
+            <input
+              type="number"
+              min="0"
+              max="10000000"
+              step="0.01"
+              required
+              disabled={busy}
+              value={additionalCost}
+              onChange={(event) => {
+                setAdditionalCost(event.target.value);
+                setResult(null);
+              }}
+            />
+            <small className="input-hint">Expedited charter or lane surcharge</small>
+          </label>
+        </div>
 
         <button
           type="submit"
-          className="primary-button"
+          className="primary-button what-if-submit-btn"
           disabled={busy}
         >
-          {busy ? "Calculating..." : "Compare scenario"}
+          <Play size={15} />
+          <span>{busy ? "Evaluating Scenarios..." : "Compare Scenarios"}</span>
         </button>
       </form>
 
-      {error && <p className="form-alert" role="alert">{error}</p>}
+      {error && (
+        <div className="form-alert" role="alert">
+          <AlertTriangle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
+      {/* Comparison Results */}
       {result && (
-        <>
+        <div className="what-if-results">
           {result.locationStale && (
-            <p className="form-alert">
-              Location is missing or stale. Both estimates depend on
-              the last known position.
-            </p>
+            <div className="form-alert" role="alert">
+              <AlertTriangle size={16} />
+              <span>
+                Location is missing or stale. Both projections rely on the last
+                known recorded position.
+              </span>
+            </div>
           )}
 
-          <div className="role-dashboard-scroll">
-            <table className="role-dashboard-table">
+          <div className="what-if-table-scroll">
+            <table className="what-if-comparison-table">
               <thead>
                 <tr>
                   <th>Metric</th>
-                  <th>Current estimate</th>
-                  <th>Hypothetical scenario</th>
+                  <th>Current Baseline</th>
+                  <th>Hypothetical Scenario</th>
                 </tr>
               </thead>
-
               <tbody>
                 {rows.map(([metric, baseline, scenario]) => (
                   <tr key={metric}>
-                    <th>{metric}</th>
-                    <td>{baseline}</td>
-                    <td>{scenario}</td>
+                    <td className="metric-name">{metric}</td>
+                    <td className="baseline-val">{baseline}</td>
+                    <td className="scenario-val">{scenario}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <p>
-            Additional scenario cost:{" "}
-            <strong>{money(result.additionalCostInr)}</strong>
+          <div className="what-if-financial-summary">
+            <div className="fin-card">
+              <span className="fin-label">Additional Scenario Cost</span>
+              <strong className="fin-val">{money(result.additionalCostInr)}</strong>
+            </div>
+
+            <div className="fin-card fin-card-highlight">
+              <span className="fin-label">Hypothetical Net Benefit</span>
+              <strong className="fin-val val-benefit">
+                {money(result.hypotheticalNetBenefitInr)}
+              </strong>
+              <small className="fin-hint">(Exposure reduction minus cost)</small>
+            </div>
+          </div>
+
+          <p className="tracking-muted what-if-disclaimer">
+            Assumptions comparison only. Savings are not guaranteed. Actual
+            carrier reassignment requires formal recovery approval in the recovery
+            workspace.
           </p>
 
-          <p>
-            Hypothetical exposure reduction minus additional cost:{" "}
-            <strong>
-              {money(result.hypotheticalNetBenefitInr)}
-            </strong>
+          <p className="tracking-muted what-if-timestamp">
+            {result.assumptions.estimateBasis} · Calculated{" "}
+            {date(result.calculatedAt)}
           </p>
-
-          <p className="tracking-muted">
-            This is a comparison of assumptions, not guaranteed savings.
-            A hypothetical deadline change does not renegotiate the
-            actual SLA. Actual carrier changes still require recovery
-            approval.
-          </p>
-
-          <p className="tracking-muted">
-            {result.assumptions.estimateBasis}
-            {" · "}Calculated {date(result.calculatedAt)}
-          </p>
-        </>
+        </div>
       )}
     </section>
   );
