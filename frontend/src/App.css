@@ -4707,3 +4707,59 @@
     padding: 6px 0;
   }
 }
+
+
+/* STEP 5 — Neutral workspace indicator */
+
+.workspace-status-badge {
+  background: #F5F8F7;
+  border: 1px solid #D8E4E2;
+  color: #356866;
+}
+
+.workspace-status-badge .workspace-status-dot {
+  display: none;
+}
+
+
+/* STEP 5 — Mobile workspace header improvements */
+
+@media (max-width: 640px) {
+  .workspace-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .workspace-header-left {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .workspace-header-right {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .workspace-header-actions {
+    max-width: 100%;
+  }
+
+  .workspace-title {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 380px) {
+  .workspace-refresh-badge {
+    font-size: 10px;
+  }
+
+  .workspace-status-badge {
+    font-size: 10px;
+  }
+}

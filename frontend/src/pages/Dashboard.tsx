@@ -213,11 +213,11 @@ export default function Dashboard() {
 
   const etaVersion = selected
     ? [
-        selected.events[0]?.id,
-        selected.routeRevision,
-        selected.deadline,
-        selected.trackingStatus,
-      ].join(":")
+      selected.events[0]?.id,
+      selected.routeRevision,
+      selected.deadline,
+      selected.trackingStatus,
+    ].join(":")
     : "";
 
   useEffect(() => {
@@ -316,29 +316,33 @@ export default function Dashboard() {
     (shipment) => shipment.trackingStatus === "delivered"
   ).length;
 
+
   const risky = active.filter(
-    (shipment) => shipment.riskStatus && shipment.riskStatus !== "On Track"
+    (shipment) =>
+      !shipment.slaAssessmentStale &&
+      shipment.riskStatus !== null &&
+      shipment.riskStatus !== "On Track"
   ).length;
 
   const nextMilestone = selected
     ? sequence[
-        sequence.findIndex(
-          (milestone) => milestone === selected.trackingStatus
-        ) + 1
-      ]
+    sequence.findIndex(
+      (milestone) => milestone === selected.trackingStatus
+    ) + 1
+    ]
     : undefined;
 
   async function carrierUpdate(
     update:
       | {
-          eventType: "location";
-          latitude: number;
-          longitude: number;
-        }
+        eventType: "location";
+        latitude: number;
+        longitude: number;
+      }
       | {
-          eventType: "milestone";
-          milestone: string;
-        }
+        eventType: "milestone";
+        milestone: string;
+      }
   ) {
     if (simulating) return;
     if (!selected) return;
@@ -673,6 +677,7 @@ export default function Dashboard() {
                   {filtered.map((shipment) => {
                     const isSelected = shipment.id === selectedId;
                     const progressKey = shipment.trackingStatus.toLowerCase();
+                    const riskStale = shipment.slaAssessmentStale;
                     const riskKey = shipment.riskStatus
                       ? shipment.riskStatus.toLowerCase().replaceAll(" ", "-")
                       : "none";
@@ -716,6 +721,19 @@ export default function Dashboard() {
                             <span className="badge badge-risk risk-delivered">
                               Delivered
                             </span>
+                          ) : riskStale ? (
+                            <span
+                              className="badge badge-risk risk-unassessed"
+                              title={
+                                shipment.riskStatus
+                                  ? `Last recorded risk: ${shipment.riskStatus}. Assessment is stale.`
+                                  : "No recent SLA assessment is available."
+                              }
+                            >
+                              {shipment.riskStatus
+                                ? "Assessment stale"
+                                : "Not assessed"}
+                            </span>
                           ) : shipment.riskStatus ? (
                             <span
                               className={`badge badge-risk risk-${riskKey}`}
@@ -732,7 +750,7 @@ export default function Dashboard() {
                           {shipment.predictedDelayCostInr === null ? (
                             <span className="exposure-muted">
                               {shipment.trackingStatus === "delivered" ||
-                              shipment.status !== "booked"
+                                shipment.status !== "booked"
                                 ? "Not applicable"
                                 : "Awaiting fresh assessment"}
                             </span>
@@ -750,9 +768,8 @@ export default function Dashboard() {
                         <td className="td-action">
                           <button
                             type="button"
-                            className={`secondary-button action-inspect-btn ${
-                              isSelected ? "is-active" : ""
-                            }`}
+                            className={`secondary-button action-inspect-btn ${isSelected ? "is-active" : ""
+                              }`}
                             onClick={() => {
                               setSelectedId(
                                 isSelected ? "" : shipment.id
@@ -828,22 +845,22 @@ export default function Dashboard() {
               <TrackingMap
                 origin={
                   selected.originLongitude !== null &&
-                  selected.originLatitude !== null
+                    selected.originLatitude !== null
                     ? [selected.originLongitude, selected.originLatitude]
                     : null
                 }
                 destination={
                   selected.destinationLongitude !== null &&
-                  selected.destinationLatitude !== null
+                    selected.destinationLatitude !== null
                     ? [
-                        selected.destinationLongitude,
-                        selected.destinationLatitude,
-                      ]
+                      selected.destinationLongitude,
+                      selected.destinationLatitude,
+                    ]
                     : null
                 }
                 current={
                   selected.currentLongitude !== null &&
-                  selected.currentLatitude !== null
+                    selected.currentLatitude !== null
                     ? [selected.currentLongitude, selected.currentLatitude]
                     : null
                 }

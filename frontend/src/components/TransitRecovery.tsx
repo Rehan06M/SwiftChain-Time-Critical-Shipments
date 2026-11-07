@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiRequest } from "../lib/api";
 import {
   CheckCircle2,
@@ -41,15 +41,34 @@ const date = (value: string) =>
     timeStyle: "short",
   });
 
+
 export default function TransitRecovery({
   shipments,
+  onApproved,
 }: {
   shipments: Shipment[];
+  onApproved?: () => void;
 }) {
+
   const [selected, setSelected] = useState("");
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  function isExpired(expiresAt: string) {
+    return new Date(expiresAt).getTime() <= now;
+  }
+
 
   async function generate() {
     if (!selected) return;
@@ -81,7 +100,7 @@ export default function TransitRecovery({
     if (
       !window.confirm(
         `Approve ${proposal.routeName} for an additional ` +
-          `${money(proposal.additionalCostInr)}? No original-booking refund.`
+        `${money(proposal.additionalCostInr)}? No original-booking refund.`
       )
     )
       return;
@@ -100,7 +119,7 @@ export default function TransitRecovery({
       setProposals([]);
       setMessage(
         `${result.message}. Arrival: ` + date(result.estimatedArrival)
-      );
+      ); onApproved?.();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Approval failed");
     } finally {
@@ -198,11 +217,10 @@ export default function TransitRecovery({
                     </span>
                   </div>
                   <div
-                    className={`proposal-badge ${
-                      proposal.meetsDeadline
-                        ? "badge-feasible"
-                        : "badge-infeasible"
-                    }`}
+                    className={`proposal-badge ${proposal.meetsDeadline
+                      ? "badge-feasible"
+                      : "badge-infeasible"
+                      }`}
                   >
                     {proposal.meetsDeadline ? (
                       <CheckCircle2 size={13} />
@@ -278,15 +296,24 @@ export default function TransitRecovery({
                     Approval rechecks position, service, and net benefit.
                   </span>
 
+
+                  {isExpired(proposal.expiresAt) && (
+                    <p className="tracking-muted" role="status">
+                      This proposal has expired. Generate new transfer options.
+                    </p>
+                  )}
+
                   <button
                     type="button"
-                    className="primary-button approve-btn"
-                    disabled={busy}
+                    className="primary-button"
+                    disabled={busy || isExpired(proposal.expiresAt)}
                     onClick={() => void approve(proposal)}
                   >
-                    <CheckCircle2 size={15} />
-                    <span>Approve Transfer Recovery</span>
+                    {isExpired(proposal.expiresAt)
+                      ? "Proposal expired"
+                      : "Approve transfer recovery"}
                   </button>
+
                 </div>
               </article>
             ))}

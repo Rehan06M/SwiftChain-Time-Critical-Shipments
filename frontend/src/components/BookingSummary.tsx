@@ -18,32 +18,62 @@ export default function BookingSummary({ shipmentId }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
     let active = true;
+    let requestInProgress = false;
 
     setBooking(null);
     setError("");
     setLoading(true);
 
-    getBooking(shipmentId)
-      .then((result) => {
-        if (active) setBooking(result.booking);
-      })
-      .catch((err) => {
-        if (active) {
+    async function refreshBooking(initial = false) {
+      if (requestInProgress) return;
+
+      requestInProgress = true;
+
+      try {
+        const result = await getBooking(shipmentId);
+
+        if (!active) return;
+
+        setBooking(result.booking);
+        setError("");
+      } catch (err) {
+        if (!active) return;
+
+        // Keep the last successful booking visible
+        // if a background refresh fails.
+        if (initial) {
           setError(
-            err instanceof Error ? err.message : "Unable to load booking"
+            err instanceof Error
+              ? err.message
+              : "Unable to load booking"
           );
         }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      } finally {
+        requestInProgress = false;
+
+        if (active && initial) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void refreshBooking(true);
+
+    // Refresh carrier, arrival, and recovery costs
+    // while the booking panel remains open.
+    const refreshTimer = window.setInterval(() => {
+      void refreshBooking();
+    }, 10000);
 
     return () => {
       active = false;
+      window.clearInterval(refreshTimer);
     };
   }, [shipmentId]);
+
 
   if (loading) {
     return (

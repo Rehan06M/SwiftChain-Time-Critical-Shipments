@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 
+import type { Server } from "socket.io";
+
+
 import { db } from "../config/db.js";
 import {
   requireAuth,
@@ -141,7 +144,7 @@ router.post(
         },
       });
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
+      await client.query("ROLLBACK").catch(() => { });
 
       console.error("Assign dispatcher:", error);
 
@@ -353,15 +356,15 @@ router.post(
       }
 
       const baseline = await evaluateShipmentETA(id.data);
-if (
-  baseline.status !== "active" ||
-  baseline.prediction === null
-) {
-  throw new ShipmentETAError(
-    "Shipment no longer requires recovery.",
-    409
-  );
-}
+      if (
+        baseline.status !== "active" ||
+        baseline.prediction === null
+      ) {
+        throw new ShipmentETAError(
+          "Shipment no longer requires recovery.",
+          409
+        );
+      }
 
       const lanes = await client.query(
         `
@@ -520,7 +523,7 @@ if (
           : "No eligible alternative improves the current ETA",
       });
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
+      await client.query("ROLLBACK").catch(() => { });
 
       if (error instanceof ShipmentETAError) {
         res.status(error.statusCode).json({
@@ -640,7 +643,7 @@ router.post(
         shipment.booking_id !== proposal.booking_id ||
         shipment.current_lane_id !== proposal.original_lane_id ||
         new Date(shipment.updated_at).getTime() !==
-          new Date(snapshot.shipmentUpdatedAt).getTime()
+        new Date(snapshot.shipmentUpdatedAt).getTime()
       ) {
         fail("Shipment or booking changed. Generate new recommendations.");
       }
@@ -688,9 +691,9 @@ router.post(
         Number(shipment.weight_kg) > Number(lane.max_weight_kg) ||
         !lane.supported_cargo_types.includes(shipment.cargo_type) ||
         lane.origin_city.trim().toLowerCase() !==
-          shipment.origin_city.trim().toLowerCase() ||
+        shipment.origin_city.trim().toLowerCase() ||
         lane.destination_city.trim().toLowerCase() !==
-          shipment.destination_city.trim().toLowerCase()
+        shipment.destination_city.trim().toLowerCase()
       ) {
         fail("Alternative carrier is no longer eligible.");
       }
@@ -741,18 +744,18 @@ router.post(
 
       const prediction = baseline.prediction;
 
-if (prediction === null) {
-  throw new ShipmentETAError(
-    "Shipment no longer requires recovery.",
-    409
-  );
-}
+      if (prediction === null) {
+        throw new ShipmentETAError(
+          "Shipment no longer requires recovery.",
+          409
+        );
+      }
 
-const savedMinutes =
-  (
-    new Date(prediction.estimated_arrival).getTime() -
-    arrival.getTime()
-  ) / 60_000;
+      const savedMinutes =
+        (
+          new Date(prediction.estimated_arrival).getTime() -
+          arrival.getTime()
+        ) / 60_000;
       const meetsDeadline =
         arrival.getTime() <= new Date(shipment.deadline).getTime();
 
@@ -843,10 +846,20 @@ const savedMinutes =
         [shipmentId]
       );
 
+
       await client.query("COMMIT");
+
+      // Notify the shipment owner's tracking view after
+      // the new carrier and booking changes are committed.
+      const io = req.app.get("trackingIo") as Server | undefined;
+
+      io?.to(`shipment:${shipmentId}`).emit("tracking:updated", {
+        shipmentId,
+      });
 
       res.json({
         message: "Recovery approved",
+
         carrierName: lane.carrier_name,
         estimatedArrival: arrival.toISOString(),
         additionalCostInr: Number(proposal.additional_cost_inr),
@@ -854,7 +867,7 @@ const savedMinutes =
         meetsDeadline,
       });
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
+      await client.query("ROLLBACK").catch(() => { });
 
       if (error instanceof ShipmentETAError) {
         res.status(error.statusCode).json({

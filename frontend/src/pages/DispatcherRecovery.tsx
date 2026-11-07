@@ -122,8 +122,8 @@ export default function DispatcherRecovery() {
   async function approve(proposal: Proposal) {
     const confirmed = window.confirm(
       `Approve ${proposal.carrierName} for an additional ` +
-        `${money(proposal.additionalCostInr)}? ` +
-        "The original booking is not refunded."
+      `${money(proposal.additionalCostInr)}? ` +
+      "The original booking is not refunded."
     );
 
     if (!confirmed) return;
@@ -243,9 +243,8 @@ export default function DispatcherRecovery() {
                 const isSelected = selectedId === shipment.id;
                 return (
                   <article
-                    className={`recovery-shipment-card ${
-                      isSelected ? "is-selected-candidate" : ""
-                    }`}
+                    className={`recovery-shipment-card ${isSelected ? "is-selected-candidate" : ""
+                      }`}
                     key={shipment.id}
                   >
                     <div className="candidate-head">
@@ -326,11 +325,10 @@ export default function DispatcherRecovery() {
                           </span>
                         </div>
                         <div
-                          className={`proposal-badge ${
-                            proposal.meetsDeadline
+                          className={`proposal-badge ${proposal.meetsDeadline
                               ? "badge-feasible"
                               : "badge-infeasible"
-                          }`}
+                            }`}
                         >
                           {proposal.meetsDeadline ? (
                             <CheckCircle2 size={13} />
@@ -373,8 +371,8 @@ export default function DispatcherRecovery() {
                           {expired
                             ? "Expired — regenerate options"
                             : `Expires ${new Date(
-                                proposal.expiresAt
-                              ).toLocaleTimeString("en-IN")}`}
+                              proposal.expiresAt
+                            ).toLocaleTimeString("en-IN")}`}
                         </span>
 
                         <button
@@ -409,7 +407,19 @@ export default function DispatcherRecovery() {
             </p>
           </div>
 
-          <TransitRecovery shipments={transitShipments} />
+
+          <TransitRecovery
+            shipments={transitShipments}
+            onApproved={() => {
+              void load().catch((err) => {
+                setMessage(
+                  "Recovery was approved, but the shipment list could not " +
+                  "refresh. Please use Refresh shipments. " +
+                  (err instanceof Error ? err.message : "")
+                );
+              });
+            }}
+          />
         </section>
       </div>
     </WorkspaceLayout>

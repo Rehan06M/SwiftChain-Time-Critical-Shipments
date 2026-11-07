@@ -134,13 +134,16 @@ export default function ShipmentAlerts() {
 
       {data?.alerts.length === 0 ? (
         <div className="alerts-empty-state">
-          <CheckCircle2 size={28} />
-          <p>All shipments are operating within SLA tolerances.</p>
+          <Info size={28} />
+          <p>No SLA notifications recorded yet.</p>
           <small className="tracking-muted">
-            New risk updates and recovery events will automatically appear here.
+            Notifications appear when the monitoring worker
+            detects a reportable change in shipment risk.
+            Check each shipment's ETA for its latest assessment.
           </small>
         </div>
       ) : (
+
         <ul className="shipment-alert-list">
           {data?.alerts.map((alert) => {
             const riskClass = alert.riskStatus

@@ -244,9 +244,12 @@ export default function WorkspaceLayout({
               </div>
             )}
 
-            <div className="workspace-status-badge">
-              <span className="workspace-status-dot" />
-              <span>Operational</span>
+
+            <div
+              className="workspace-status-badge"
+              title="Workspace is open. This does not indicate background service health."
+            >
+              <span>Workspace</span>
             </div>
 
             {headerActions && (

@@ -317,14 +317,14 @@ router.post(
 
       const access = shipment
         ? await client.query(
-            `
+          `
               SELECT 1
               FROM public.carrier_accounts
               WHERE user_id = $1 AND carrier_id = $2
               FOR SHARE
             `,
-            [req.authUser!.id, shipment.carrier_id]
-          )
+          [req.authUser!.id, shipment.carrier_id]
+        )
         : null;
 
       if (!shipment || !access?.rows[0]) {
@@ -421,7 +421,7 @@ router.post(
       });
     } catch (error) {
       if (client) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client.query("ROLLBACK").catch(() => { });
       }
 
       console.error("Carrier update:", error);
@@ -507,7 +507,7 @@ router.post(
 
       const baseSpeed =
         distance > 0 &&
-        breakdown.travel_minutes > 0
+          breakdown.travel_minutes > 0
           ? distance / (breakdown.travel_minutes / 60)
           : 60;
 
@@ -629,11 +629,22 @@ router.post(
 // Read-only logistics copilot.
 // Reuses the workspace visibility rule for every database request.
 
+const copilotLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    message:
+      "Too many Copilot requests. Please try again later.",
+  },
+});
+
 const copilotSchema = z.object({
   question: z.string().trim().min(3).max(500),
   shipmentId: z.uuid().optional(),
 
-  mode: z.enum(["rules", "chat"]).default("rules"),
+  mode: z.enum(["rules", "chat"]).default("chat"),
 
   history: z.array(
     z.object({
@@ -662,38 +673,43 @@ interface CopilotRow {
   savedProposalCount: number;
 }
 
-router.post("/copilot", async (req: AuthRequest, res) => {
-  res.setHeader("Cache-Control", "no-store");
 
-  const parsed = copilotSchema.safeParse(req.body);
+router.post(
+  "/copilot",
+  copilotLimiter,
+  async (req: AuthRequest, res) => {
 
-  if (!parsed.success) {
-    res.status(400).json({
-      message: "Enter a question of 3–500 characters.",
-    });
-    return;
-  }
+    res.setHeader("Cache-Control", "no-store");
 
-  const { question, shipmentId } = parsed.data;
+    const parsed = copilotSchema.safeParse(req.body);
 
-  const intent =
-    /recover|alternative|proposal|transfer/i.test(question)
-      ? "recovery"
-      : /cost|financial|impact|exposure|money/i.test(question)
-        ? "financial"
-        : /why|explain/i.test(question)
-          ? "explain"
-          : /risk|attention|urgent|late|delay|priority/i.test(question)
-            ? "attention"
-            : /summary|summarize|overview|shipment|status/i.test(question)
-              ? "summary"
-              : "help";
+    if (!parsed.success) {
+      res.status(400).json({
+        message: "Enter a question of 3–500 characters.",
+      });
+      return;
+    }
 
-  
+    const { question, shipmentId } = parsed.data;
 
-  try {
-    const result = await db.query<CopilotRow>(
-      `
+    const intent =
+      /recover|alternative|proposal|transfer/i.test(question)
+        ? "recovery"
+        : /cost|financial|impact|exposure|money/i.test(question)
+          ? "financial"
+          : /why|explain/i.test(question)
+            ? "explain"
+            : /risk|attention|urgent|late|delay|priority/i.test(question)
+              ? "attention"
+              : /summary|summarize|overview|shipment|status/i.test(question)
+                ? "summary"
+                : "help";
+
+
+
+    try {
+      const result = await db.query<CopilotRow>(
+        `
         SELECT
           s.id,
           s.tracking_code AS "trackingCode",
@@ -789,276 +805,279 @@ router.post("/copilot", async (req: AuthRequest, res) => {
         ORDER BY s.created_at DESC, s.id DESC
         LIMIT 201
       `,
-      [
-        req.authUser!.id,
-        req.authUser!.role,
-        shipmentId ?? null,
-      ]
-    );
-
-    if (shipmentId && result.rows.length === 0) {
-      res.status(404).json({
-        message: "Shipment not found",
-      });
-      return;
-    }
-
-    const limited = result.rows.length > 200;
-    const rows = result.rows.slice(0, 200);
-    const now = Date.now();
-
-    const isActive = (shipment: CopilotRow) =>
-      shipment.status === "booked" &&
-      shipment.trackingStatus !== "delivered";
-
-    const active = rows.filter(isActive);
-
-    const needsAttention = (shipment: CopilotRow) =>
-      isActive(shipment) &&
-      (
-        new Date(shipment.deadline).getTime() <= now ||
-        !shipment.assessmentFresh ||
-        !shipment.locationFresh ||
-        (
-          shipment.assessmentFresh &&
-          shipment.riskStatus !== "On Track"
-        )
+        [
+          req.authUser!.id,
+          req.authUser!.role,
+          shipmentId ?? null,
+        ]
       );
 
-    const attention = rows.filter(needsAttention);
-
-    const money = (value: number) =>
-      new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-      }).format(value);
-
-    const reasons = (shipment: CopilotRow): string[] => {
-      if (shipment.trackingStatus === "delivered") {
-        return ["Delivery has been recorded."];
+      if (shipmentId && result.rows.length === 0) {
+        res.status(404).json({
+          message: "Shipment not found",
+        });
+        return;
       }
 
-      if (shipment.status !== "booked") {
-        return [
-          `Shipment status is ${shipment.status}. ` +
-          "An active booking is required for operational ETA assessment.",
+      const limited = result.rows.length > 200;
+      const rows = result.rows.slice(0, 200);
+      const now = Date.now();
+
+      const isActive = (shipment: CopilotRow) =>
+        shipment.status === "booked" &&
+        shipment.trackingStatus !== "delivered";
+
+      const active = rows.filter(isActive);
+
+      const needsAttention = (shipment: CopilotRow) =>
+        isActive(shipment) &&
+        (
+          new Date(shipment.deadline).getTime() <= now ||
+          !shipment.assessmentFresh ||
+          !shipment.locationFresh ||
+          (
+            shipment.assessmentFresh &&
+            shipment.riskStatus !== "On Track"
+          )
+        );
+
+      const attention = rows.filter(needsAttention);
+
+      const money = (value: number) =>
+        new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(value);
+
+      const reasons = (shipment: CopilotRow): string[] => {
+        if (shipment.trackingStatus === "delivered") {
+          return ["Delivery has been recorded."];
+        }
+
+        if (shipment.status !== "booked") {
+          return [
+            `Shipment status is ${shipment.status}. ` +
+            "An active booking is required for operational ETA assessment.",
+          ];
+        }
+
+        const messages: string[] = [];
+
+        if (new Date(shipment.deadline).getTime() <= now) {
+          messages.push(
+            "The deadline has passed and delivery has not been recorded."
+          );
+        }
+
+        if (!shipment.assessmentFresh) {
+          messages.push(
+            "The SLA assessment is missing or older than two minutes. " +
+            "A current risk conclusion is unavailable."
+          );
+        } else {
+          messages.push(
+            `Latest SLA assessment: ${shipment.riskStatus ?? "Unknown"}.`
+          );
+
+          if (shipment.estimatedArrival) {
+            const slack = Math.round(
+              (
+                new Date(shipment.deadline).getTime() -
+                new Date(shipment.estimatedArrival).getTime()
+              ) / 60_000
+            );
+
+            messages.push(
+              slack >= 0
+                ? `Estimated arrival has approximately ${slack} minutes of deadline buffer.`
+                : `Estimated arrival misses the deadline by approximately ${Math.abs(slack)} minutes.`
+            );
+          }
+        }
+
+        if (!shipment.locationFresh) {
+          messages.push(
+            "The latest location is missing or older than two minutes. " +
+            "Record a fresh carrier location."
+          );
+        }
+
+        if (shipment.delayExposureInr !== null) {
+          messages.push(
+            `Predicted delay exposure: ${money(shipment.delayExposureInr)}.`
+          );
+        }
+
+        return messages;
+      };
+
+      let selected = rows;
+      let answer: string;
+
+      if (intent === "financial") {
+        const known = active.filter(
+          (shipment) => shipment.delayExposureInr !== null
+        );
+
+        const total = known.reduce(
+          (sum, shipment) => sum + (shipment.delayExposureInr ?? 0),
+          0
+        );
+
+        answer =
+          `Known predicted delay exposure is ${money(total)} across ` +
+          `${known.length} active shipments with fresh assessments. ` +
+          `${active.length - known.length} active shipments have unknown ` +
+          "exposure. This estimate uses predicted late hours multiplied " +
+          "by the configured hourly delay cost; it is not an invoice.";
+
+        selected = [...active].sort(
+          (a, b) =>
+            (b.delayExposureInr ?? -1) -
+            (a.delayExposureInr ?? -1)
+        );
+      } else if (intent === "recovery") {
+        selected = active;
+
+        const count = active.reduce(
+          (sum, shipment) => sum + shipment.savedProposalCount,
+          0
+        );
+
+        answer =
+          `There are ${count} unexpired saved pending recovery proposals ` +
+          "for the current bookings in this scope. Saved proposals still " +
+          "need eligibility and position checks during approval. " +
+          "An assigned Dispatcher can generate current alternatives " +
+          "in the Recovery workspace.";
+      } else if (intent === "attention") {
+        selected = attention;
+
+        answer =
+          `${attention.length} of ${active.length} active shipments need ` +
+          "attention because of deadline risk, a passed deadline, " +
+          "a stale assessment, or a stale location.";
+      } else if (intent === "explain") {
+        answer = shipmentId
+          ? "The supporting shipment evidence is shown below. " +
+          "The records explain the calculated risk, but do not prove " +
+          "a real-world cause such as traffic or vehicle failure."
+          : "Select a shipment with Inspect for a focused explanation. " +
+          "Below are the current attention cases.";
+
+        selected = shipmentId ? rows : attention;
+      } else {
+        const delivered = rows.filter(
+          (shipment) => shipment.trackingStatus === "delivered"
+        ).length;
+
+        answer =
+          `This scope contains ${rows.length} shipments: ` +
+          `${active.length} active bookings and ${delivered} delivered. ` +
+          `${attention.length} active shipments need attention.`;
+
+        selected = [
+          ...attention,
+          ...rows.filter((shipment) => !needsAttention(shipment)),
         ];
       }
 
-      const messages: string[] = [];
+      const generatedAt = new Date().toISOString();
 
-      if (new Date(shipment.deadline).getTime() <= now) {
-        messages.push(
-          "The deadline has passed and delivery has not been recorded."
-        );
-      }
+      const scope = shipmentId
+        ? "Selected authorized shipment."
+        : limited
+          ? "Latest 200 authorized shipments; older records are excluded."
+          : `${rows.length} authorized shipments.`;
 
-      if (!shipment.assessmentFresh) {
-        messages.push(
-          "The SLA assessment is missing or older than two minutes. " +
-          "A current risk conclusion is unavailable."
-        );
-      } else {
-        messages.push(
-          `Latest SLA assessment: ${shipment.riskStatus ?? "Unknown"}.`
-        );
+      const supportingShipments = selected.slice(0, 10).map(
+        (shipment) => ({
+          id: shipment.id,
+          trackingCode: shipment.trackingCode,
+          route: `${shipment.originCity} → ${shipment.destinationCity}`,
+          trackingStatus: shipment.trackingStatus,
+          carrierName: shipment.carrierName,
+          evaluatedAt: shipment.evaluatedAt,
 
-        if (shipment.estimatedArrival) {
-          const slack = Math.round(
-            (
-              new Date(shipment.deadline).getTime() -
-              new Date(shipment.estimatedArrival).getTime()
-            ) / 60_000
-          );
+          estimatedArrival:
+            shipment.assessmentFresh && isActive(shipment)
+              ? shipment.estimatedArrival
+              : null,
 
-          messages.push(
-            slack >= 0
-              ? `Estimated arrival has approximately ${slack} minutes of deadline buffer.`
-              : `Estimated arrival misses the deadline by approximately ${Math.abs(slack)} minutes.`
-          );
+          deadline: shipment.deadline,
+          reasons: reasons(shipment),
+          recoveryLabel: shipment.recoveryLabel,
+          savedProposalCount: shipment.savedProposalCount,
+        })
+      );
+
+
+      let aiSummary: string | null = null;
+      let aiUnavailable: string | null = null;
+
+      if (parsed.data.mode === "chat") {
+        try {
+          // Send a bounded snapshot from the authorized database query.
+          const aiShipments = supportingShipments.map((shipment) => ({
+            trackingCode: shipment.trackingCode,
+            route: shipment.route.slice(0, 160),
+            trackingStatus: shipment.trackingStatus,
+            carrierName:
+              shipment.carrierName?.slice(0, 120) ?? null,
+            evaluatedAt: shipment.evaluatedAt,
+            estimatedArrival: shipment.estimatedArrival,
+            deadline: shipment.deadline,
+            reasons: shipment.reasons,
+            recoveryLabel:
+              shipment.recoveryLabel?.slice(0, 160) ?? null,
+            savedProposalCount: shipment.savedProposalCount,
+          }));
+
+          const reply = await generateGroqCopilotReply({
+            question,
+            history: parsed.data.history,
+            snapshot: {
+              checkedAt: generatedAt,
+              scope,
+              requestedView: intent,
+              factualSummary: answer,
+              matchingShipmentCount: selected.length,
+              supportingCardCount: aiShipments.length,
+              shipments: aiShipments,
+            },
+          });
+
+          aiSummary = reply.answer;
+
+          if (reply.truncated) {
+            aiUnavailable =
+              "The AI explanation was shortened. Select one shipment " +
+              "or ask a more specific question for a complete answer.";
+          }
+        } catch (error) {
+          // Preserve the deterministic facts if AI is unavailable.
+          aiUnavailable =
+            error instanceof Error
+              ? error.message
+              : "AI summary is temporarily unavailable.";
         }
       }
 
-      if (!shipment.locationFresh) {
-        messages.push(
-          "The latest location is missing or older than two minutes. " +
-          "Record a fresh carrier location."
-        );
-      }
+      res.json({
+        answer,
+        aiSummary,
+        aiUnavailable,
+        generatedAt,
+        scope,
+        shipments: supportingShipments,
+      });
+    } catch (error) {
+      console.error("Workspace copilot:", error);
 
-      if (shipment.delayExposureInr !== null) {
-        messages.push(
-          `Predicted delay exposure: ${money(shipment.delayExposureInr)}.`
-        );
-      }
-
-      return messages;
-    };
-
-    let selected = rows;
-    let answer: string;
-
-    if (intent === "financial") {
-      const known = active.filter(
-        (shipment) => shipment.delayExposureInr !== null
-      );
-
-      const total = known.reduce(
-        (sum, shipment) => sum + (shipment.delayExposureInr ?? 0),
-        0
-      );
-
-      answer =
-        `Known predicted delay exposure is ${money(total)} across ` +
-        `${known.length} active shipments with fresh assessments. ` +
-        `${active.length - known.length} active shipments have unknown ` +
-        "exposure. This estimate uses predicted late hours multiplied " +
-        "by the configured hourly delay cost; it is not an invoice.";
-
-      selected = [...active].sort(
-        (a, b) =>
-          (b.delayExposureInr ?? -1) -
-          (a.delayExposureInr ?? -1)
-      );
-    } else if (intent === "recovery") {
-      selected = active;
-
-      const count = active.reduce(
-        (sum, shipment) => sum + shipment.savedProposalCount,
-        0
-      );
-
-      answer =
-        `There are ${count} unexpired saved pending recovery proposals ` +
-        "for the current bookings in this scope. Saved proposals still " +
-        "need eligibility and position checks during approval. " +
-        "An assigned Dispatcher can generate current alternatives " +
-        "in the Recovery workspace.";
-    } else if (intent === "attention") {
-      selected = attention;
-
-      answer =
-        `${attention.length} of ${active.length} active shipments need ` +
-        "attention because of deadline risk, a passed deadline, " +
-        "a stale assessment, or a stale location.";
-    } else if (intent === "explain") {
-      answer = shipmentId
-        ? "The supporting shipment evidence is shown below. " +
-          "The records explain the calculated risk, but do not prove " +
-          "a real-world cause such as traffic or vehicle failure."
-        : "Select a shipment with Inspect for a focused explanation. " +
-          "Below are the current attention cases.";
-
-      selected = shipmentId ? rows : attention;
-    } else {
-      const delivered = rows.filter(
-        (shipment) => shipment.trackingStatus === "delivered"
-      ).length;
-
-      answer =
-        `This scope contains ${rows.length} shipments: ` +
-        `${active.length} active bookings and ${delivered} delivered. ` +
-        `${attention.length} active shipments need attention.`;
-
-      selected = [
-        ...attention,
-        ...rows.filter((shipment) => !needsAttention(shipment)),
-      ];
+      res.status(503).json({
+        message: "Copilot data is temporarily unavailable.",
+      });
     }
-
-    const generatedAt = new Date().toISOString();
-
-const scope = shipmentId
-  ? "Selected authorized shipment."
-  : limited
-    ? "Latest 200 authorized shipments; older records are excluded."
-    : `${rows.length} authorized shipments.`;
-
-const supportingShipments = selected.slice(0, 10).map(
-  (shipment) => ({
-    id: shipment.id,
-    trackingCode: shipment.trackingCode,
-    route: `${shipment.originCity} → ${shipment.destinationCity}`,
-    trackingStatus: shipment.trackingStatus,
-    carrierName: shipment.carrierName,
-    evaluatedAt: shipment.evaluatedAt,
-
-    estimatedArrival:
-      shipment.assessmentFresh && isActive(shipment)
-        ? shipment.estimatedArrival
-        : null,
-
-    deadline: shipment.deadline,
-    reasons: reasons(shipment),
-    recoveryLabel: shipment.recoveryLabel,
-    savedProposalCount: shipment.savedProposalCount,
-  })
-);
-
-let aiSummary: string | null = null;
-let aiUnavailable: string | null = null;
-
-try {
-  // Send a bounded snapshot derived from the authorized query.
-  // Do not send credentials, account emails or shipment addresses.
-  const aiShipments = supportingShipments.map((shipment) => ({
-    trackingCode: shipment.trackingCode,
-    route: shipment.route.slice(0, 160),
-    trackingStatus: shipment.trackingStatus,
-    carrierName: shipment.carrierName?.slice(0, 120) ?? null,
-    evaluatedAt: shipment.evaluatedAt,
-    estimatedArrival: shipment.estimatedArrival,
-    deadline: shipment.deadline,
-    reasons: shipment.reasons,
-    recoveryLabel: shipment.recoveryLabel?.slice(0, 160) ?? null,
-    savedProposalCount: shipment.savedProposalCount,
-  }));
-
-  const reply = await generateGroqCopilotReply({
-  question,
-  history: parsed.data.history,
-
-  snapshot: {
-    checkedAt: generatedAt,
-    scope,
-    requestedView: intent,
-    factualSummary: answer,
-    matchingShipmentCount: selected.length,
-    supportingCardCount: aiShipments.length,
-    shipments: aiShipments,
-  },
-});
-
-aiSummary = reply.answer;
-
-if (reply.truncated) {
-  aiUnavailable =
-    "The AI explanation was shortened. Select one shipment " +
-    "or ask a more specific question for a complete answer.";
-}
-} catch (error) {
-  // Preserve the existing facts and cards if AI is unavailable.
-  aiUnavailable =
-    error instanceof Error
-      ? error.message
-      : "AI summary is temporarily unavailable.";
-}
-
-res.json({
-  answer,
-  aiSummary,
-  aiUnavailable,
-  generatedAt,
-  scope,
-  shipments: supportingShipments,
-});
-  } catch (error) {
-    console.error("Workspace copilot:", error);
-
-    res.status(503).json({
-      message: "Copilot data is temporarily unavailable.",
-    });
-  }
-});
+  });
 
 export default router;

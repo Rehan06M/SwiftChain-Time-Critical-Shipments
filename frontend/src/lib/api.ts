@@ -16,6 +16,19 @@ export interface AuthResponse {
   user: User;
 }
 
+
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {}
@@ -31,9 +44,13 @@ export async function apiRequest<T>(
 
   const data = await response.json().catch(() => ({}));
 
+
   if (!response.ok) {
-    throw new Error(
-      data.message ?? "Something went wrong"
+    throw new ApiError(
+      typeof data.message === "string"
+        ? data.message
+        : "Something went wrong",
+      response.status
     );
   }
 
