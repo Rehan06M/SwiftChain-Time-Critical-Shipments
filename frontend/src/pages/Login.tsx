@@ -31,8 +31,10 @@ export default function Login() {
     setSelectedRole(role);
     setSelectedDemoRole(role);
     setError("");
-    setEmail(role === "dispatcher" ? "dispatcher@swiftchain.test" : "carrier@swiftchain.test");
-    setPassword(""); // Never embed an account password in the browser bundle.
+    setEmail("dispatcher@swiftchain.test");
+    setPassword(import.meta.env.VITE_DEMO_PASSWORD ?? "");
+    setEmail("carrier@swiftchain.test");
+    setPassword(import.meta.env.VITE_DEMO_PASSWORD ?? "");
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -100,7 +102,7 @@ export default function Login() {
               <button type="button" key={id} aria-pressed={selectedRole === id}
                 className={`auth-role-option ${selectedRole === id ? "is-selected" : ""}`}
                 onClick={() => { setSelectedRole(id); setSelectedDemoRole(null); }}>
-                <Icon size={19}/><span>{label}</span>
+                <Icon size={19} /><span>{label}</span>
               </button>
             ))}
           </div>
@@ -156,9 +158,8 @@ export default function Login() {
               <div className="demo-credentials-grid">
                 <button
                   type="button"
-                  className={`demo-credential-btn ${
-                    selectedDemoRole === "dispatcher" ? "is-selected" : ""
-                  }`}
+                  className={`demo-credential-btn ${selectedDemoRole === "dispatcher" ? "is-selected" : ""
+                    }`}
                   onClick={() => handleSelectDemo("dispatcher")}
                   disabled={submitting}
                 >
@@ -167,9 +168,8 @@ export default function Login() {
                 </button>
                 <button
                   type="button"
-                  className={`demo-credential-btn ${
-                    selectedDemoRole === "carrier" ? "is-selected" : ""
-                  }`}
+                  className={`demo-credential-btn ${selectedDemoRole === "carrier" ? "is-selected" : ""
+                    }`}
                   onClick={() => handleSelectDemo("carrier")}
                   disabled={submitting}
                 >
@@ -177,7 +177,33 @@ export default function Login() {
                   <span className="demo-email-tag">carrier@swiftchain.test</span>
                 </button>
               </div>
-              <p className="auth-demo-note">Choose an account, then enter its locally configured password.</p>
+
+              <div className="auth-demo-note">
+                <p>Select a demo account to sign in.</p>
+
+
+                {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === "true" && (
+                  <div className="auth-demo-credentials">
+                    <p>
+                      <strong>Demo Dispatcher</strong>
+                      <span> — dispatcher@swiftchain.test</span>
+                    </p>
+                    <p>
+                      <strong>Demo Carrier</strong>
+                      <span> — carrier@swiftchain.test</span>
+                    </p>
+                    <p>
+                      <strong>Demo Password: </strong>
+                      <code>{import.meta.env.VITE_DEMO_PASSWORD}</code>
+                    </p>
+                    <small>
+                      Public demonstration accounts. No private shipment data.
+                    </small>
+                  </div>
+                )}
+
+              </div>
+
             </div>
 
             <button
